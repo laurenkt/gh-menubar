@@ -11,12 +11,20 @@ let package = Package(
         .executable(
             name: "MenuBarApp",
             targets: ["MenuBarApp"]
+        ),
+        .executable(
+            name: "MenuBarAppTests",
+            targets: ["MenuBarAppTests"]
         )
     ],
     targets: [
         .executableTarget(
             name: "MenuBarApp",
             path: "Sources/MenuBarApp"
+        ),
+        .executableTarget(
+            name: "MenuBarAppTests",
+            path: "Tests/MenuBarAppTests"
         )
     ]
 )
