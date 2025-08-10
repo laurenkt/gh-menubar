@@ -36,3 +36,4 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         show-passed-tests: false
         show-code-coverage: false
+        upload-bundles: never
