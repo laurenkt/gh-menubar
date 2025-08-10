@@ -14,20 +14,53 @@ struct MenuBarApp: App {
 
 struct MenuBarExtraView: View {
     @StateObject private var appSettings = AppSettings.shared
+    @StateObject private var viewModel = PullRequestViewModel()
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if appSettings.hasAPIKey {
-                Text("GitHub PRs")
-                    .font(.headline)
-                    .padding(.bottom, 4)
+                HStack {
+                    Text("GitHub PRs")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    } else {
+                        Button(action: { viewModel.refresh() }) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.bottom, 4)
                 
                 Divider()
                 
-                Text("Pull requests will appear here")
-                    .foregroundColor(.secondary)
-                    .padding(.vertical, 20)
-                    .frame(maxWidth: .infinity)
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                } else if viewModel.pullRequests.isEmpty && !viewModel.isLoading {
+                    Text("No open pull requests")
+                        .foregroundColor(.secondary)
+                        .padding(.vertical, 20)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 1) {
+                            ForEach(viewModel.pullRequests) { pr in
+                                PullRequestRow(pullRequest: pr)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 400)
+                }
             } else {
                 Label("No API Key Configured", systemImage: "exclamationmark.triangle")
                     .foregroundColor(.orange)
@@ -52,7 +85,72 @@ struct MenuBarExtraView: View {
             }
             .keyboardShortcut("q")
         }
-        .frame(width: 280)
+        .frame(width: 320)
         .padding(.vertical, 8)
+    }
+}
+
+struct PullRequestRow: View {
+    let pullRequest: GitHubPullRequest
+    
+    var body: some View {
+        Button(action: {
+            if let url = URL(string: pullRequest.htmlUrl) {
+                NSWorkspace.shared.open(url)
+            }
+        }) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    if pullRequest.draft {
+                        Image(systemName: "doc.text")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    }
+                    
+                    Text(pullRequest.title)
+                        .font(.system(size: 12))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    
+                    Spacer()
+                }
+                
+                HStack {
+                    Text("#\(pullRequest.number)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    if let repoName = pullRequest.repositoryName {
+                        Text(repoName)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Text(relativeTime(from: pullRequest.updatedAt))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .background(Color.gray.opacity(0.0001))
+        .onHover { isHovered in
+            if isHovered {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+    }
+    
+    private func relativeTime(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
