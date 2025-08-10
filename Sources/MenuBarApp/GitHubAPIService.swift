@@ -48,6 +48,8 @@ struct GitHubPullRequest: Codable, Identifiable {
     let user: GitHubUser
     let pullRequest: PullRequestInfo?
     let repositoryUrl: String
+    let headSha: String?
+    var checkRuns: [GitHubCheckRun] = []
     
     enum CodingKeys: String, CodingKey {
         case id, number, title, state, draft, user
@@ -56,6 +58,7 @@ struct GitHubPullRequest: Codable, Identifiable {
         case updatedAt = "updated_at"
         case pullRequest = "pull_request"
         case repositoryUrl = "repository_url"
+        case headSha = "head_sha"
     }
     
     var repositoryName: String? {
@@ -80,6 +83,54 @@ struct GitHubPullRequest: Codable, Identifiable {
         }
         return nil
     }
+    
+    var hasFailingChecks: Bool {
+        checkRuns.contains { $0.isFailed }
+    }
+    
+    var hasInProgressChecks: Bool {
+        checkRuns.contains { $0.isInProgress }
+    }
+    
+    var allChecksSuccessful: Bool {
+        !checkRuns.isEmpty && checkRuns.allSatisfy { $0.isSuccessful }
+    }
+    
+    var checkStatus: CheckStatus {
+        if checkRuns.isEmpty {
+            return .unknown
+        }
+        if hasFailingChecks {
+            return .failed
+        }
+        if hasInProgressChecks {
+            return .inProgress
+        }
+        if allChecksSuccessful {
+            return .success
+        }
+        return .unknown
+    }
+}
+
+enum CheckStatus: String, CaseIterable {
+    case success = "success"
+    case failed = "failed"
+    case inProgress = "in_progress"
+    case unknown = "unknown"
+    
+    var displayName: String {
+        switch self {
+        case .success:
+            return "Passing"
+        case .failed:
+            return "Failed"
+        case .inProgress:
+            return "In Progress"
+        case .unknown:
+            return "Unknown"
+        }
+    }
 }
 
 struct PullRequestInfo: Codable {
@@ -89,6 +140,67 @@ struct PullRequestInfo: Codable {
     enum CodingKeys: String, CodingKey {
         case url
         case htmlUrl = "html_url"
+    }
+}
+
+struct GitHubCheckRun: Codable, Identifiable {
+    let id: Int
+    let headSha: String
+    let status: String
+    let conclusion: String?
+    let name: String
+    let startedAt: Date?
+    let completedAt: Date?
+    let output: CheckRunOutput?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, status, conclusion, name, output
+        case headSha = "head_sha"
+        case startedAt = "started_at"
+        case completedAt = "completed_at"
+    }
+    
+    var isComplete: Bool {
+        status == "completed"
+    }
+    
+    var isSuccessful: Bool {
+        conclusion == "success"
+    }
+    
+    var isFailed: Bool {
+        conclusion == "failure"
+    }
+    
+    var isInProgress: Bool {
+        status == "in_progress" || status == "queued"
+    }
+}
+
+struct CheckRunOutput: Codable {
+    let title: String?
+    let summary: String?
+    let annotationsCount: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case title, summary
+        case annotationsCount = "annotations_count"
+    }
+}
+
+struct GitHubCheckRunsResponse: Codable {
+    let checkRuns: [GitHubCheckRun]
+    
+    enum CodingKeys: String, CodingKey {
+        case checkRuns = "check_runs"
+    }
+}
+
+struct GitHubPullRequestDetails: Codable {
+    let head: PRHead
+    
+    struct PRHead: Codable {
+        let sha: String
     }
 }
 
@@ -275,8 +387,44 @@ class GitHubAPIService: ObservableObject {
         validationResult = nil
     }
     
+    func fetchCheckRuns(for owner: String, repo: String, sha: String, token: String) async throws -> [GitHubCheckRun] {
+        guard let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/commits/\(sha)/check-runs") else {
+            throw GitHubAPIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        
+        let (data, response) = try await urlSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
+        }
+        
+        try handleAPIResponse(httpResponse)
+        
+        do {
+            let checkRunsResponse = try jsonDecoder.decode(GitHubCheckRunsResponse.self, from: data)
+            return checkRunsResponse.checkRuns
+        } catch {
+            #if DEBUG
+            print("Check runs JSON decoding error: \(error)")
+            if let responseString = String(data: data, encoding: .utf8) {
+                let truncated = String(responseString.prefix(200))
+                print("Response preview: \(truncated)...")
+            }
+            #endif
+            throw error
+        }
+    }
+    
     func fetchOpenPullRequests(token: String) async throws -> [GitHubPullRequest] {
-        guard let url = URL(string: "\(baseURL)/search/issues?q=is:pr+is:open+author:@me&sort=updated&per_page=50") else {
+        // First get user info to get the username
+        let user = try await fetchUser(token: token)
+        
+        guard let url = URL(string: "\(baseURL)/search/issues?q=is:pr+is:open+author:\(user.login)&sort=updated&per_page=50") else {
             throw GitHubAPIError.invalidURL
         }
         
@@ -311,6 +459,27 @@ class GitHubAPIService: ObservableObject {
             #endif
             throw error
         }
+    }
+    
+    func fetchPullRequestDetails(owner: String, repo: String, number: Int, token: String) async throws -> GitHubPullRequestDetails {
+        guard let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/pulls/\(number)") else {
+            throw GitHubAPIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        
+        let (data, response) = try await urlSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
+        }
+        
+        try handleAPIResponse(httpResponse)
+        
+        return try jsonDecoder.decode(GitHubPullRequestDetails.self, from: data)
     }
     
     private func handleAPIResponse(_ response: HTTPURLResponse) throws {
