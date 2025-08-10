@@ -29,5 +29,5 @@ jobs:
       with:
         name: 'Test Results'
         path: 'TestResults.xcresult'
-        reporter: 'swift'
+        reporter: 'swift-xunit'
         fail-on-error: true
