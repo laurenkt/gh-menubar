@@ -49,16 +49,19 @@ struct GitHubPullRequest: Codable, Identifiable {
     let pullRequest: PullRequestInfo?
     let repositoryUrl: String
     let headSha: String?
+    var mergeable: Bool?
+    var mergeableState: String?
     var checkRuns: [GitHubCheckRun] = []
     
     enum CodingKeys: String, CodingKey {
-        case id, number, title, state, draft, user
+        case id, number, title, state, draft, user, mergeable
         case htmlUrl = "html_url"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case pullRequest = "pull_request"
         case repositoryUrl = "repository_url"
         case headSha = "head_sha"
+        case mergeableState = "mergeable_state"
     }
     
     var repositoryName: String? {
@@ -107,6 +110,15 @@ struct GitHubPullRequest: Codable, Identifiable {
         return nil
     }
     
+    var hasBranchConflicts: Bool {
+        // Check if PR has merge conflicts that prevent checks from running
+        let hasConflicts = mergeable == false && mergeableState == "dirty"
+        #if DEBUG
+        print("PR #\(number): mergeable=\(mergeable?.description ?? "nil"), mergeableState=\(mergeableState ?? "nil"), hasBranchConflicts=\(hasConflicts)")
+        #endif
+        return hasConflicts
+    }
+    
     var hasFailingChecks: Bool {
         checkRuns.contains { $0.isFailed }
     }
@@ -120,6 +132,10 @@ struct GitHubPullRequest: Codable, Identifiable {
     }
     
     var checkStatus: CheckStatus {
+        // Branch conflicts take precedence over check status
+        if hasBranchConflicts {
+            return .failed
+        }
         if checkRuns.isEmpty {
             return .unknown
         }
@@ -352,9 +368,16 @@ struct GitHubWorkflowJobsResponse: Codable {
 
 struct GitHubPullRequestDetails: Codable {
     let head: PRHead
+    let mergeable: Bool?
+    let mergeableState: String?
     
     struct PRHead: Codable {
         let sha: String
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case head, mergeable
+        case mergeableState = "mergeable_state"
     }
 }
 

@@ -119,7 +119,7 @@ struct PullRequestMenuItem: View {
     }
     
     var body: some View {
-        if !pullRequest.checkRuns.isEmpty {
+        if !pullRequest.checkRuns.isEmpty || pullRequest.hasBranchConflicts {
             Menu {
                 Button(action: {
                     if let url = URL(string: pullRequest.htmlUrl) {
@@ -130,6 +130,16 @@ struct PullRequestMenuItem: View {
                 }
                 
                 Divider()
+                
+                // Show branch conflicts if they exist
+                if pullRequest.hasBranchConflicts {
+                    Text("❌ Branch conflicts prevent checks from running")
+                        .disabled(true)
+                    
+                    if !pullRequest.checkRuns.isEmpty {
+                        Divider()
+                    }
+                }
                 
                 ForEach(pullRequest.checkRuns) { checkRun in
                     if checkRun.isGitHubActions && !checkRun.jobs.isEmpty {
