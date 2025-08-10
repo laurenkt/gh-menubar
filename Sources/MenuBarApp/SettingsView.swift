@@ -410,6 +410,7 @@ struct QueryRowView: View {
 struct QueryEditSheet: View {
     @State private var title: String
     @State private var query: String
+    @State private var componentOrder: [PRDisplayComponent]
     @State private var showOrgName: Bool
     @State private var showProjectName: Bool
     @State private var showPRNumber: Bool
@@ -425,6 +426,7 @@ struct QueryEditSheet: View {
         self.originalQuery = query
         self._title = State(initialValue: query.title)
         self._query = State(initialValue: query.query)
+        self._componentOrder = State(initialValue: query.componentOrder)
         self._showOrgName = State(initialValue: query.showOrgName)
         self._showProjectName = State(initialValue: query.showProjectName)
         self._showPRNumber = State(initialValue: query.showPRNumber)
@@ -469,32 +471,17 @@ struct QueryEditSheet: View {
                     }
             }
             
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 Text("Display Options:")
                     .font(.headline)
                 
-                HStack(alignment: .top, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Show organization name", isOn: $showOrgName)
-                        Toggle("Show project name", isOn: $showProjectName)
-                        Toggle("Show PR number", isOn: $showPRNumber)
-                        Toggle("Show author name", isOn: $showAuthorName)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Preview:")
-                            .font(.subheadline)
-                            .bold()
-                        
-                        PreviewPRItem(
-                            showOrgName: showOrgName,
-                            showProjectName: showProjectName,
-                            showPRNumber: showPRNumber,
-                            showAuthorName: showAuthorName
-                        )
-                    }
-                    .frame(minWidth: 200)
-                }
+                Text("Drag components to rearrange or remove from layout:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                HorizontalDragDropEditor(
+                    componentOrder: $componentOrder
+                )
             }
             
             VStack(alignment: .leading, spacing: 12) {
@@ -522,6 +509,7 @@ struct QueryEditSheet: View {
                     let updatedQuery = originalQuery.updated(
                         title: title,
                         query: query,
+                        componentOrder: componentOrder,
                         showOrgName: showOrgName,
                         showProjectName: showProjectName,
                         showPRNumber: showPRNumber,
@@ -591,6 +579,355 @@ struct PreviewPRItem: View {
         }
         
         return parts.joined(separator: " - ")
+    }
+}
+
+struct HorizontalDragDropEditor: View {
+    @Binding var componentOrder: [PRDisplayComponent]
+    @State private var availableComponents: [PRDisplayComponent] = []
+    @State private var draggedComponent: PRDisplayComponent?
+    @State private var dropTargetIndex: Int? = nil
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Layout editor with horizontal draggable components
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Layout:")
+                    .font(.subheadline)
+                    .bold()
+                
+                // Interactive draggable preview with drop indicators
+                HStack(spacing: 0) {
+                    // Leading drop zone
+                    DropZoneIndicator(
+                        isActive: dropTargetIndex == 0,
+                        index: 0,
+                        componentOrder: $componentOrder,
+                        availableComponents: $availableComponents,
+                        draggedComponent: $draggedComponent,
+                        dropTargetIndex: $dropTargetIndex
+                    )
+                    
+                    ForEach(Array(componentOrder.enumerated()), id: \.element.id) { index, component in
+                        HStack(spacing: 0) {
+                            HorizontalDragChip(
+                                component: component,
+                                isInPreview: true,
+                                draggedComponent: $draggedComponent
+                            )
+                            
+                            // Drop zone after each component
+                            DropZoneIndicator(
+                                isActive: dropTargetIndex == index + 1,
+                                index: index + 1,
+                                componentOrder: $componentOrder,
+                                availableComponents: $availableComponents,
+                                draggedComponent: $draggedComponent,
+                                dropTargetIndex: $dropTargetIndex
+                            )
+                        }
+                    }
+                }
+                .padding(8)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(6)
+                .onDrop(of: [.text], delegate: PreviewAreaDropDelegate(
+                    componentOrder: $componentOrder,
+                    availableComponents: $availableComponents,
+                    draggedComponent: $draggedComponent,
+                    dropTargetIndex: $dropTargetIndex
+                ))
+            }
+            
+            // Palette of available components
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Available Components:")
+                    .font(.subheadline)
+                    .bold()
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(availableComponents, id: \.id) { component in
+                            HorizontalDragChip(
+                                component: component,
+                                isInPreview: false,
+                                draggedComponent: $draggedComponent
+                            )
+                            .onTapGesture(count: 2) {
+                                addToLayout(component)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+                .frame(height: 36)
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                )
+                .onDrop(of: [.text], delegate: PaletteDropDelegate(
+                    componentOrder: $componentOrder,
+                    draggedComponent: $draggedComponent
+                ))
+            }
+            
+            HStack {
+                Button("Reset to Default") {
+                    resetToDefault()
+                }
+                .font(.caption)
+                
+                Spacer()
+                
+                Text("Drag to rearrange • Double-click to add • Drag back to palette to remove")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .onAppear {
+            updateAvailableComponents()
+        }
+        .onChange(of: componentOrder) { _ in
+            updateAvailableComponents()
+        }
+    }
+    
+    private func updateAvailableComponents() {
+        availableComponents = PRDisplayComponent.allCases.filter { component in
+            // Separators can always be added (multiple allowed)
+            if component == .separator {
+                return true
+            }
+            // Other components can only be added if not already in use
+            return !componentOrder.contains(component)
+        }
+    }
+    
+    private func addToLayout(_ component: PRDisplayComponent) {
+        // Separators can be added multiple times, others only if not already present
+        if component == .separator || !componentOrder.contains(component) {
+            componentOrder.append(component)
+        }
+    }
+    
+    private func removeFromLayout(_ component: PRDisplayComponent) {
+        componentOrder.removeAll { $0 == component }
+    }
+    
+    private func resetToDefault() {
+        componentOrder = [.statusSymbol, .title, .orgName, .projectName, .prNumber, .authorName]
+    }
+}
+
+struct HorizontalDragChip: View {
+    let component: PRDisplayComponent
+    let isInPreview: Bool
+    @Binding var draggedComponent: PRDisplayComponent?
+    
+    var body: some View {
+        Text(component.displayName)
+            .font(.system(.body))
+            .foregroundColor(isInPreview ? .primary : .secondary)
+            .padding(.horizontal, isInPreview ? 6 : 8)
+            .padding(.vertical, isInPreview ? 3 : 4)
+            .background(isInPreview ? Color.blue.opacity(0.15) : Color.gray.opacity(0.15))
+            .cornerRadius(isInPreview ? 4 : 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: isInPreview ? 4 : 6)
+                    .stroke(isInPreview ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+            .onDrag {
+                draggedComponent = component
+                return NSItemProvider(object: component.rawValue as NSString)
+            }
+            .scaleEffect(draggedComponent == component ? 0.95 : 1.0)
+            .opacity(draggedComponent == component ? 0.7 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: draggedComponent == component)
+    }
+}
+
+
+struct PreviewAreaDropDelegate: DropDelegate {
+    @Binding var componentOrder: [PRDisplayComponent]
+    @Binding var availableComponents: [PRDisplayComponent]
+    @Binding var draggedComponent: PRDisplayComponent?
+    @Binding var dropTargetIndex: Int?
+    
+    func dropExited(info: DropInfo) {
+        dropTargetIndex = nil
+    }
+    
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggedComponent = nil
+            dropTargetIndex = nil
+        }
+        
+        guard let draggedComponent = draggedComponent else { return false }
+        
+        // If adding from palette to end of preview
+        if availableComponents.contains(draggedComponent) || draggedComponent == .separator {
+            componentOrder.append(draggedComponent)
+        }
+        
+        return true
+    }
+}
+
+struct PaletteDropDelegate: DropDelegate {
+    @Binding var componentOrder: [PRDisplayComponent]
+    @Binding var draggedComponent: PRDisplayComponent?
+    
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggedComponent = nil
+        }
+        
+        guard let draggedComponent = draggedComponent else { return false }
+        
+        // If removing from preview back to palette
+        if componentOrder.contains(draggedComponent) {
+            componentOrder.removeAll { $0 == draggedComponent }
+        }
+        
+        return true
+    }
+}
+
+struct DropZoneIndicator: View {
+    let isActive: Bool
+    let index: Int
+    @Binding var componentOrder: [PRDisplayComponent]
+    @Binding var availableComponents: [PRDisplayComponent]
+    @Binding var draggedComponent: PRDisplayComponent?
+    @Binding var dropTargetIndex: Int?
+    
+    var body: some View {
+        Rectangle()
+            .fill(isActive ? Color.blue : Color.clear)
+            .frame(width: isActive ? 2 : 4, height: 20)
+            .animation(.easeInOut(duration: 0.15), value: isActive)
+            .onDrop(of: [.text], delegate: DropZoneDelegate(
+                targetIndex: index,
+                componentOrder: $componentOrder,
+                availableComponents: $availableComponents,
+                draggedComponent: $draggedComponent,
+                dropTargetIndex: $dropTargetIndex
+            ))
+    }
+}
+
+struct DropZoneDelegate: DropDelegate {
+    let targetIndex: Int
+    @Binding var componentOrder: [PRDisplayComponent]
+    @Binding var availableComponents: [PRDisplayComponent]
+    @Binding var draggedComponent: PRDisplayComponent?
+    @Binding var dropTargetIndex: Int?
+    
+    func dropEntered(info: DropInfo) {
+        dropTargetIndex = targetIndex
+    }
+    
+    func dropExited(info: DropInfo) {
+        dropTargetIndex = nil
+    }
+    
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggedComponent = nil
+            dropTargetIndex = nil
+        }
+        
+        guard let draggedComponent = draggedComponent else { return false }
+        
+        // If reordering within preview
+        if let currentIndex = componentOrder.firstIndex(of: draggedComponent) {
+            // Only move if the target position is different
+            if currentIndex != targetIndex && targetIndex != currentIndex + 1 {
+                // Remove from current position
+                let component = componentOrder.remove(at: currentIndex)
+                
+                // Calculate adjusted target index
+                let adjustedTargetIndex: Int
+                if targetIndex > currentIndex {
+                    // Moving forward - target index needs adjustment since we removed an element before it
+                    adjustedTargetIndex = targetIndex - 1
+                } else {
+                    // Moving backward - target index stays the same
+                    adjustedTargetIndex = targetIndex
+                }
+                
+                // Insert at the correct position
+                let finalIndex = min(adjustedTargetIndex, componentOrder.count)
+                componentOrder.insert(component, at: finalIndex)
+            }
+        }
+        // If adding from palette
+        else if availableComponents.contains(draggedComponent) || draggedComponent == .separator {
+            let adjustedIndex = min(targetIndex, componentOrder.count)
+            componentOrder.insert(draggedComponent, at: adjustedIndex)
+        }
+        
+        return true
+    }
+}
+
+struct DragDropPreviewPRItem: View {
+    let componentOrder: [PRDisplayComponent]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Menu item will look like:")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            
+            Text(buildCompleteText())
+                .font(.system(.body, design: .monospaced))
+                .padding(8)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(6)
+        }
+    }
+    
+    private func buildCompleteText() -> String {
+        var parts: [String] = []
+        var currentGroup: [String] = []
+        
+        for component in componentOrder {
+            switch component {
+            case .statusSymbol:
+                if !currentGroup.isEmpty {
+                    parts.append(currentGroup.joined(separator: " "))
+                    currentGroup = []
+                }
+                parts.append(component.exampleText)
+                
+            case .title:
+                if !currentGroup.isEmpty {
+                    parts.append(currentGroup.joined(separator: " "))
+                    currentGroup = []
+                }
+                parts.append(component.exampleText)
+                
+            case .separator:
+                if !currentGroup.isEmpty {
+                    parts.append(currentGroup.joined(separator: " "))
+                    currentGroup = []
+                }
+                // Separator is handled by joining with " – "
+                
+            case .orgName, .projectName, .prNumber, .authorName:
+                currentGroup.append(component.exampleText)
+            }
+        }
+        
+        if !currentGroup.isEmpty {
+            parts.append(currentGroup.joined(separator: " "))
+        }
+        
+        return parts.joined(separator: " – ")
     }
 }
 

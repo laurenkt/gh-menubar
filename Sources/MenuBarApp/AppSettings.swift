@@ -1,12 +1,51 @@
 import SwiftUI
 import AppKit
 
+enum PRDisplayComponent: String, CaseIterable, Codable, Identifiable {
+    case statusSymbol = "status_symbol"
+    case title = "title"
+    case orgName = "org_name"
+    case projectName = "project_name"
+    case prNumber = "pr_number"
+    case authorName = "author_name"
+    case separator = "separator"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .statusSymbol: return "Status Symbol"
+        case .title: return "Title"
+        case .orgName: return "Organization"
+        case .projectName: return "Project"
+        case .prNumber: return "PR Number"
+        case .authorName: return "Author"
+        case .separator: return "Separator (–)"
+        }
+    }
+    
+    var exampleText: String {
+        switch self {
+        case .statusSymbol: return "✓"
+        case .title: return "Fix login validation bug"
+        case .orgName: return "acme-corp"
+        case .projectName: return "mobile-app"
+        case .prNumber: return "#1234"
+        case .authorName: return "@johndoe"
+        case .separator: return "–"
+        }
+    }
+}
+
 struct QueryConfiguration: Codable, Identifiable, Equatable {
     let id: UUID
     var title: String
     var query: String
     
-    // Display preferences
+    // Component ordering (new drag & drop interface)
+    var componentOrder: [PRDisplayComponent]
+    
+    // Legacy display preferences (for backward compatibility)
     var showOrgName: Bool
     var showProjectName: Bool
     var showPRNumber: Bool
@@ -24,7 +63,25 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
         title = try container.decode(String.self, forKey: .title)
         query = try container.decode(String.self, forKey: .query)
         
-        // New fields with defaults for backward compatibility
+        // Component order (new field)
+        if let order = try container.decodeIfPresent([PRDisplayComponent].self, forKey: .componentOrder) {
+            componentOrder = order
+        } else {
+            // Create default order based on legacy settings for migration
+            var defaultOrder: [PRDisplayComponent] = [.statusSymbol, .title]
+            let showOrgName = try container.decodeIfPresent(Bool.self, forKey: .showOrgName) ?? true
+            let showProjectName = try container.decodeIfPresent(Bool.self, forKey: .showProjectName) ?? true
+            let showPRNumber = try container.decodeIfPresent(Bool.self, forKey: .showPRNumber) ?? true
+            let showAuthorName = try container.decodeIfPresent(Bool.self, forKey: .showAuthorName) ?? false
+            
+            if showOrgName { defaultOrder.append(.orgName) }
+            if showProjectName { defaultOrder.append(.projectName) }
+            if showPRNumber { defaultOrder.append(.prNumber) }
+            if showAuthorName { defaultOrder.append(.authorName) }
+            componentOrder = defaultOrder
+        }
+        
+        // Legacy fields with defaults for backward compatibility
         showOrgName = try container.decodeIfPresent(Bool.self, forKey: .showOrgName) ?? true
         showProjectName = try container.decodeIfPresent(Bool.self, forKey: .showProjectName) ?? true
         showPRNumber = try container.decodeIfPresent(Bool.self, forKey: .showPRNumber) ?? true
@@ -35,11 +92,13 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     
     enum CodingKeys: String, CodingKey {
         case id, title, query
+        case componentOrder
         case showOrgName, showProjectName, showPRNumber, showAuthorName
         case includeInFailingChecksCount, includeInPendingReviewsCount
     }
     
     init(title: String, query: String, 
+         componentOrder: [PRDisplayComponent]? = nil,
          showOrgName: Bool = true,
          showProjectName: Bool = true,
          showPRNumber: Bool = true,
@@ -49,6 +108,19 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
         self.id = UUID()
         self.title = title
         self.query = query
+        
+        // Set default component order if not provided
+        if let order = componentOrder {
+            self.componentOrder = order
+        } else {
+            var defaultOrder: [PRDisplayComponent] = [.statusSymbol, .title]
+            if showOrgName { defaultOrder.append(.orgName) }
+            if showProjectName { defaultOrder.append(.projectName) }
+            if showPRNumber { defaultOrder.append(.prNumber) }
+            if showAuthorName { defaultOrder.append(.authorName) }
+            self.componentOrder = defaultOrder
+        }
+        
         self.showOrgName = showOrgName
         self.showProjectName = showProjectName
         self.showPRNumber = showPRNumber
@@ -60,6 +132,7 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     mutating func update(
         title: String? = nil,
         query: String? = nil,
+        componentOrder: [PRDisplayComponent]? = nil,
         showOrgName: Bool? = nil,
         showProjectName: Bool? = nil,
         showPRNumber: Bool? = nil,
@@ -69,6 +142,7 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     ) {
         if let title = title { self.title = title }
         if let query = query { self.query = query }
+        if let componentOrder = componentOrder { self.componentOrder = componentOrder }
         if let showOrgName = showOrgName { self.showOrgName = showOrgName }
         if let showProjectName = showProjectName { self.showProjectName = showProjectName }
         if let showPRNumber = showPRNumber { self.showPRNumber = showPRNumber }
@@ -84,6 +158,7 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     func updated(
         title: String? = nil,
         query: String? = nil,
+        componentOrder: [PRDisplayComponent]? = nil,
         showOrgName: Bool? = nil,
         showProjectName: Bool? = nil,
         showPRNumber: Bool? = nil,
@@ -95,6 +170,7 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
         copy.update(
             title: title,
             query: query,
+            componentOrder: componentOrder,
             showOrgName: showOrgName,
             showProjectName: showProjectName,
             showPRNumber: showPRNumber,
