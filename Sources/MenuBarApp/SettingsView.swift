@@ -12,6 +12,7 @@ struct SettingsView: View {
     enum SettingsTab: String, CaseIterable {
         case api = "API"
         case queries = "Queries"
+        case general = "General"
     }
     
     var body: some View {
@@ -36,6 +37,8 @@ struct SettingsView: View {
                 )
             case .queries:
                 QueriesSettingsView()
+            case .general:
+                GeneralSettingsView()
             }
         }
         .padding(20)
@@ -452,5 +455,43 @@ struct QueryEditSheet: View {
         }
         .padding(20)
         .frame(width: 400)
+    }
+}
+
+struct GeneralSettingsView: View {
+    @StateObject private var appSettings = AppSettings.shared
+    @StateObject private var viewModel = PullRequestViewModel()
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("General Settings")
+                .font(.title2)
+                .bold()
+            
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Refresh Interval")
+                    .font(.headline)
+                
+                Text("How often to automatically check for pull request updates")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Picker("Refresh Interval", selection: Binding(
+                    get: { appSettings.refreshInterval },
+                    set: { newInterval in
+                        appSettings.setRefreshInterval(newInterval)
+                        viewModel.startAutoRefresh()
+                    }
+                )) {
+                    ForEach(AppSettings.refreshIntervalOptions, id: \.interval) { option in
+                        Text(option.title).tag(option.interval)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 200, alignment: .leading)
+            }
+            
+            Spacer()
+        }
     }
 }

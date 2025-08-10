@@ -24,6 +24,7 @@ class PullRequestViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var currentUserLogin: String?
+    @Published var lastRefreshTime: Date?
     
     private let apiService = GitHubAPIService.shared
     private let appSettings = AppSettings.shared
@@ -161,6 +162,7 @@ class PullRequestViewModel: ObservableObject {
             // Keep the old pullRequests for backward compatibility (flatten all results)
             pullRequests = results.flatMap { $0.pullRequests }
             
+            lastRefreshTime = Date()
             errorMessage = nil
         } catch {
             queryResults = []
@@ -195,7 +197,8 @@ class PullRequestViewModel: ObservableObject {
         }
         
         // Refresh at configured interval using weak self to prevent retain cycles
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: ViewModelConstants.autoRefreshInterval, repeats: true) { [weak self] _ in
+        let refreshInterval = appSettings.refreshInterval
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             Task { @MainActor in
                 await self.fetchPullRequests()

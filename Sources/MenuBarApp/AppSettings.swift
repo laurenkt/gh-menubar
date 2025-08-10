@@ -38,10 +38,12 @@ class AppSettings: ObservableObject {
     @Published var hasAPIKey: Bool = false
     @Published var isSettingsPresented: Bool = false
     @Published var queries: [QueryConfiguration] = []
+    @Published var refreshInterval: TimeInterval = 300 // 5 minutes default
     
     private let keychainManager = KeychainManager.shared
     private var settingsWindow: NSWindow?
     private let queriesKey = "configuredQueries"
+    private let refreshIntervalKey = "refreshInterval"
     
     // Testing support
     #if DEBUG
@@ -54,6 +56,7 @@ class AppSettings: ObservableObject {
     private init() {
         checkForExistingAPIKey()
         loadQueries()
+        loadRefreshInterval()
     }
     
     func checkForExistingAPIKey() {
@@ -136,4 +139,31 @@ class AppSettings: ObservableObject {
         queries[index] = query
         saveQueries()
     }
+    
+    func loadRefreshInterval() {
+        let stored = UserDefaults.standard.double(forKey: refreshIntervalKey)
+        if stored > 0 {
+            refreshInterval = stored
+        } else {
+            refreshInterval = 300 // 5 minutes default
+            saveRefreshInterval()
+        }
+    }
+    
+    func saveRefreshInterval() {
+        UserDefaults.standard.set(refreshInterval, forKey: refreshIntervalKey)
+    }
+    
+    func setRefreshInterval(_ interval: TimeInterval) {
+        refreshInterval = interval
+        saveRefreshInterval()
+    }
+    
+    static let refreshIntervalOptions: [(title: String, interval: TimeInterval)] = [
+        ("30 seconds", 30),
+        ("1 minute", 60),
+        ("2 minutes", 120),
+        ("5 minutes", 300),
+        ("60 minutes", 3600)
+    ]
 }
