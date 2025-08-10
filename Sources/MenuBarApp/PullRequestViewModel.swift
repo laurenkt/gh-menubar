@@ -1,0 +1,86 @@
+import SwiftUI
+import Combine
+
+// MARK: - Configuration Constants
+private enum ViewModelConstants {
+    static let autoRefreshInterval: TimeInterval = 300 // 5 minutes
+}
+
+@MainActor
+class PullRequestViewModel: ObservableObject {
+    @Published var pullRequests: [GitHubPullRequest] = []
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
+    
+    private let apiService = GitHubAPIService.shared
+    private let appSettings = AppSettings.shared
+    private var refreshTimer: Timer?
+    
+    init() {
+        startAutoRefresh()
+    }
+    
+    deinit {
+        refreshTimer?.invalidate()
+    }
+    
+    func fetchPullRequests() async {
+        guard let token = appSettings.getAPIKey() else {
+            errorMessage = "No API key configured"
+            return
+        }
+        
+        isLoading = true
+        // Clear any previous error when attempting a new request
+        errorMessage = nil
+        
+        do {
+            let prs = try await apiService.fetchOpenPullRequests(token: token)
+            pullRequests = prs
+            errorMessage = nil
+        } catch {
+            pullRequests = []
+            if let gitHubError = error as? GitHubAPIError {
+                errorMessage = gitHubError.userFriendlyDescription
+            } else if let urlError = error as? URLError {
+                switch urlError.code {
+                case .notConnectedToInternet:
+                    errorMessage = "No internet connection"
+                case .timedOut:
+                    errorMessage = "Request timed out. Please try again."
+                case .cannotFindHost, .cannotConnectToHost:
+                    errorMessage = "Cannot connect to GitHub. Check your network."
+                default:
+                    errorMessage = "Network error: \(urlError.localizedDescription)"
+                }
+            } else {
+                errorMessage = "Failed to fetch pull requests: \(error.localizedDescription)"
+            }
+        }
+        
+        isLoading = false
+    }
+    
+    func startAutoRefresh() {
+        refreshTimer?.invalidate()
+        
+        // Initial fetch
+        Task {
+            await fetchPullRequests()
+        }
+        
+        // Refresh at configured interval using weak self to prevent retain cycles
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: ViewModelConstants.autoRefreshInterval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor in
+                await self.fetchPullRequests()
+            }
+        }
+    }
+    
+    func refresh() {
+        Task {
+            await fetchPullRequests()
+        }
+    }
+}

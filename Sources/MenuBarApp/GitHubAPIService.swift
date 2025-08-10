@@ -30,6 +30,62 @@ struct GitHubOrganization: Codable, Identifiable {
     let description: String?
 }
 
+struct GitHubPullRequest: Codable, Identifiable {
+    let id: Int
+    let number: Int
+    let title: String
+    let htmlUrl: String
+    let state: String
+    let draft: Bool
+    let createdAt: Date
+    let updatedAt: Date
+    let user: GitHubUser
+    let pullRequest: PullRequestInfo?
+    let repositoryUrl: String
+    
+    enum CodingKeys: String, CodingKey {
+        case id, number, title, state, draft, user
+        case htmlUrl = "html_url"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case pullRequest = "pull_request"
+        case repositoryUrl = "repository_url"
+    }
+    
+    var repositoryName: String? {
+        // Extract repo name from repository_url using robust regex parsing
+        // Format: https://api.github.com/repos/owner/repo
+        let pattern = #"^https://api\.github\.com/repos/[^/]+/([^/]+)(?:/.*)?$"#
+        do {
+            let regex = try NSRegularExpression(pattern: pattern, options: [])
+            let range = NSRange(repositoryUrl.startIndex..<repositoryUrl.endIndex, in: repositoryUrl)
+            if let match = regex.firstMatch(in: repositoryUrl, options: [], range: range) {
+                let repoRange = Range(match.range(at: 1), in: repositoryUrl)
+                if let repoRange = repoRange {
+                    return String(repositoryUrl[repoRange])
+                }
+            }
+        } catch {
+            // Fallback to original URL parsing if regex fails
+            if let url = URL(string: repositoryUrl),
+               url.pathComponents.count >= 4 {
+                return url.pathComponents[3]
+            }
+        }
+        return nil
+    }
+}
+
+struct PullRequestInfo: Codable {
+    let url: String
+    let htmlUrl: String
+    
+    enum CodingKeys: String, CodingKey {
+        case url
+        case htmlUrl = "html_url"
+    }
+}
+
 struct GitHubValidationResult {
     let isValid: Bool
     let user: GitHubUser?
@@ -67,7 +123,13 @@ class GitHubAPIService: ObservableObject {
         return URLSession(configuration: config)
     }
     
-    private init() {}
+    private init() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        self.jsonDecoder = decoder
+    }
+    
+    private let jsonDecoder: JSONDecoder
     
     func validateToken(_ token: String) async {
         await MainActor.run {
@@ -142,7 +204,7 @@ class GitHubAPIService: ObservableObject {
         
         try handleAPIResponse(httpResponse)
         
-        return try JSONDecoder().decode(GitHubUser.self, from: data)
+        return try jsonDecoder.decode(GitHubUser.self, from: data)
     }
     
     private func fetchRepositories(token: String) async throws -> [GitHubRepository] {
@@ -162,7 +224,7 @@ class GitHubAPIService: ObservableObject {
         
         try handleAPIResponse(httpResponse)
         
-        return try JSONDecoder().decode([GitHubRepository].self, from: data)
+        return try jsonDecoder.decode([GitHubRepository].self, from: data)
     }
     
     private func fetchOrganizations(token: String) async throws -> [GitHubOrganization] {
@@ -182,16 +244,54 @@ class GitHubAPIService: ObservableObject {
         
         try handleAPIResponse(httpResponse)
         
-        return try JSONDecoder().decode([GitHubOrganization].self, from: data)
+        return try jsonDecoder.decode([GitHubOrganization].self, from: data)
     }
     
     func clearValidation() {
         validationResult = nil
     }
     
+    func fetchOpenPullRequests(token: String) async throws -> [GitHubPullRequest] {
+        guard let url = URL(string: "\(baseURL)/search/issues?q=is:pr+is:open+author:@me&sort=updated&per_page=50") else {
+            throw GitHubAPIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        
+        let (data, response) = try await urlSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
+        }
+        
+        try handleAPIResponse(httpResponse)
+        
+        struct SearchResponse: Codable {
+            let items: [GitHubPullRequest]
+        }
+        
+        do {
+            let searchResponse = try jsonDecoder.decode(SearchResponse.self, from: data)
+            return searchResponse.items
+        } catch {
+            // Log non-sensitive debugging information
+            #if DEBUG
+            print("GitHub API JSON decoding error: \(error)")
+            if let responseString = String(data: data, encoding: .utf8) {
+                // Only log first 200 characters to avoid exposing sensitive data
+                let truncated = String(responseString.prefix(200))
+                print("Response preview: \(truncated)...")
+            }
+            #endif
+            throw error
+        }
+    }
+    
     private func handleAPIResponse(_ response: HTTPURLResponse) throws {
         switch response.statusCode {
-        case 200:
+        case 200...299:
             break
         case 401:
             throw GitHubAPIError.unauthorized
@@ -241,15 +341,19 @@ enum GitHubAPIError: Error, LocalizedError {
     var userFriendlyDescription: String {
         switch self {
         case .unauthorized:
-            return "Invalid or expired GitHub token. Please check your token."
+            return "Invalid or expired GitHub token. Please check your token in Preferences."
         case .rateLimitExceeded:
-            return "GitHub API rate limit exceeded. Please try again later."
+            return "GitHub API rate limit exceeded. Please try again in a few minutes."
         case .forbidden:
-            return "Access denied. Please check your token permissions."
+            return "Access denied. Your token may need 'repo' scope to access pull requests."
         case .notFound:
-            return "Resource not found. Please check your token permissions."
-        default:
-            return "Unable to connect to GitHub. Please check your network connection."
+            return "API endpoint not found. This may indicate an issue with your token's permissions."
+        case .httpError(let code):
+            return "GitHub API error (HTTP \(code)). Please try again or check your token."
+        case .invalidURL:
+            return "Invalid API URL. This is a bug - please report it."
+        case .invalidResponse:
+            return "Invalid response from GitHub. Please try again."
         }
     }
 }
