@@ -42,7 +42,7 @@ struct MenuBarExtraView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.bottom, 4)
+                .padding(.bottom, 6)
                 
                 Divider()
                 
@@ -59,11 +59,12 @@ struct MenuBarExtraView: View {
                         .frame(maxWidth: .infinity)
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: 4) {
                             ForEach(viewModel.pullRequests) { pr in
                                 PullRequestRow(pullRequest: pr)
                             }
                         }
+                        .padding(.vertical, 4)
                     }
                     .frame(maxHeight: UIConstants.scrollViewMaxHeight)
                 }
@@ -92,7 +93,8 @@ struct MenuBarExtraView: View {
             .keyboardShortcut("q")
         }
         .frame(width: UIConstants.menuBarWidth)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 }
 
@@ -139,8 +141,8 @@ struct PullRequestRow: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
