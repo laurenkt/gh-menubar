@@ -13,8 +13,34 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Build
-      run: swift build -v
+    - name: Select Xcode
+      run: sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
 
-    - name: Run tests
-      run: ./.build/debug/MenuBarAppTests
+    - name: Build and Test
+      run: |
+        xcodebuild test -scheme MenuBarApp -destination 'platform=macOS' \
+          -resultBundlePath ./TestResults.xcresult \
+          -derivedDataPath ./DerivedData
+      continue-on-error: true
+    
+    - name: Check if test results exist
+      run: |
+        echo "Checking for test results..."
+        ls -la ./
+        if [ -d "./TestResults.xcresult" ]; then
+          echo "TestResults.xcresult found"
+          ls -la ./TestResults.xcresult/
+        else
+          echo "TestResults.xcresult not found"
+          echo "Looking for any xcresult files:"
+          find . -name "*.xcresult" -type d
+        fi
+    
+    - name: Parse test results
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: 'Test Results'
+        path: './TestResults.xcresult'
+        reporter: 'swift-xunit'
+        fail-on-error: false

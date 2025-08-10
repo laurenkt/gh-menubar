@@ -19,6 +19,14 @@ class AppSettings: ObservableObject {
     private let keychainManager = KeychainManager.shared
     private var settingsWindow: NSWindow?
     
+    // Testing support
+    #if DEBUG
+    var hasAPIKeyForTesting: Bool {
+        get { hasAPIKey }
+        set { hasAPIKey = newValue }
+    }
+    #endif
+    
     private init() {
         checkForExistingAPIKey()
     }

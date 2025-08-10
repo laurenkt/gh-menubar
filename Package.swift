@@ -11,19 +11,22 @@ let package = Package(
         .executable(
             name: "MenuBarApp",
             targets: ["MenuBarApp"]
-        ),
-        .executable(
-            name: "MenuBarAppTests",
-            targets: ["MenuBarAppTests"]
         )
+    ],
+    dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.15.0")
     ],
     targets: [
         .executableTarget(
             name: "MenuBarApp",
             path: "Sources/MenuBarApp"
         ),
-        .executableTarget(
+        .testTarget(
             name: "MenuBarAppTests",
+            dependencies: [
+                "MenuBarApp",
+                .product(name: "SnapshotTesting", package: "swift-snapshot-testing")
+            ],
             path: "Tests/MenuBarAppTests"
         )
     ]

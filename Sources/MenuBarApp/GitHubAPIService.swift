@@ -22,6 +22,12 @@ struct GitHubUser: Codable {
     let login: String
     let id: Int
     let type: String
+    
+    init(login: String, id: Int, type: String = "User") {
+        self.login = login
+        self.id = id
+        self.type = type
+    }
 }
 
 struct GitHubOrganization: Codable, Identifiable {
@@ -89,11 +95,21 @@ struct PullRequestInfo: Codable {
 struct GitHubValidationResult {
     let isValid: Bool
     let user: GitHubUser?
+    let error: String?
     let repositories: [GitHubRepository]
     let organizations: [GitHubOrganization]
-    let error: String?
     let hasMoreRepositories: Bool
     let totalRepositoryCount: Int?
+    
+    init(isValid: Bool, user: GitHubUser?, error: String?, repositories: [GitHubRepository] = [], organizations: [GitHubOrganization] = [], hasMoreRepositories: Bool = false, totalRepositoryCount: Int? = nil) {
+        self.isValid = isValid
+        self.user = user
+        self.error = error
+        self.repositories = repositories
+        self.organizations = organizations
+        self.hasMoreRepositories = hasMoreRepositories
+        self.totalRepositoryCount = totalRepositoryCount
+    }
     
     var accessibleReposCount: Int {
         repositories.count
@@ -123,13 +139,21 @@ class GitHubAPIService: ObservableObject {
         return URLSession(configuration: config)
     }
     
+    private let jsonDecoder: JSONDecoder
+    
+    // Testing support
+    #if DEBUG
+    func setValidationStateForTesting(isValidating: Bool, result: GitHubValidationResult?) {
+        self.isValidating = isValidating
+        self.validationResult = result
+    }
+    #endif
+    
     private init() {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         self.jsonDecoder = decoder
     }
-    
-    private let jsonDecoder: JSONDecoder
     
     func validateToken(_ token: String) async {
         await MainActor.run {
@@ -150,9 +174,9 @@ class GitHubAPIService: ObservableObject {
             let result = GitHubValidationResult(
                 isValid: true,
                 user: user,
+                error: nil,
                 repositories: repositories,
                 organizations: organizations,
-                error: nil,
                 hasMoreRepositories: repositories.count >= 100,
                 totalRepositoryCount: repositories.count >= 100 ? nil : repositories.count
             )
@@ -173,9 +197,9 @@ class GitHubAPIService: ObservableObject {
             let result = GitHubValidationResult(
                 isValid: false,
                 user: nil,
+                error: errorMessage,
                 repositories: [],
                 organizations: [],
-                error: errorMessage,
                 hasMoreRepositories: false,
                 totalRepositoryCount: nil
             )
