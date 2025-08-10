@@ -9,10 +9,18 @@ private enum UIConstants {
 @main
 struct MenuBarApp: App {
     @StateObject private var appSettings = AppSettings.shared
+    @StateObject private var viewModel = PullRequestViewModel()
     
     var body: some Scene {
-        MenuBarExtra("GitHub PRs", systemImage: "arrow.triangle.pull") {
-            MenuBarExtraView()
+        MenuBarExtra {
+            MenuBarExtraView(viewModel: viewModel)
+        } label: {
+            if viewModel.pendingActionsCount > 0 {
+                Text("\(viewModel.pendingActionsCount) Pending")
+                    .font(.system(size: 12, weight: .medium))
+            } else {
+                Image(systemName: "arrow.triangle.pull")
+            }
         }
         .menuBarExtraStyle(.window)
     }
@@ -20,7 +28,7 @@ struct MenuBarApp: App {
 
 struct MenuBarExtraView: View {
     @StateObject private var appSettings = AppSettings.shared
-    @StateObject private var viewModel = PullRequestViewModel()
+    @ObservedObject var viewModel: PullRequestViewModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
