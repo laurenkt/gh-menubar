@@ -36,6 +36,8 @@ struct GitHubValidationResult {
     let repositories: [GitHubRepository]
     let organizations: [GitHubOrganization]
     let error: String?
+    let hasMoreRepositories: Bool
+    let totalRepositoryCount: Int?
     
     var accessibleReposCount: Int {
         repositories.count
@@ -57,6 +59,13 @@ class GitHubAPIService: ObservableObject {
     @Published var isValidating: Bool = false
     
     private let baseURL = "https://api.github.com"
+    
+    private var urlSession: URLSession {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10.0
+        config.timeoutIntervalForResource = 30.0
+        return URLSession(configuration: config)
+    }
     
     private init() {}
     
@@ -81,7 +90,9 @@ class GitHubAPIService: ObservableObject {
                 user: user,
                 repositories: repositories,
                 organizations: organizations,
-                error: nil
+                error: nil,
+                hasMoreRepositories: repositories.count >= 100,
+                totalRepositoryCount: repositories.count >= 100 ? nil : repositories.count
             )
             
             await MainActor.run {
@@ -90,12 +101,21 @@ class GitHubAPIService: ObservableObject {
             }
             
         } catch {
+            let errorMessage: String
+            if let gitHubError = error as? GitHubAPIError {
+                errorMessage = gitHubError.userFriendlyDescription
+            } else {
+                errorMessage = "Unable to connect to GitHub. Please check your token and network connection."
+            }
+            
             let result = GitHubValidationResult(
                 isValid: false,
                 user: nil,
                 repositories: [],
                 organizations: [],
-                error: error.localizedDescription
+                error: errorMessage,
+                hasMoreRepositories: false,
+                totalRepositoryCount: nil
             )
             
             await MainActor.run {
@@ -114,19 +134,13 @@ class GitHubAPIService: ObservableObject {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw GitHubAPIError.invalidResponse
         }
         
-        if httpResponse.statusCode == 401 {
-            throw GitHubAPIError.unauthorized
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            throw GitHubAPIError.httpError(httpResponse.statusCode)
-        }
+        try handleAPIResponse(httpResponse)
         
         return try JSONDecoder().decode(GitHubUser.self, from: data)
     }
@@ -140,12 +154,13 @@ class GitHubAPIService: ObservableObject {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw GitHubAPIError.fetchFailed
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
         }
+        
+        try handleAPIResponse(httpResponse)
         
         return try JSONDecoder().decode([GitHubRepository].self, from: data)
     }
@@ -159,12 +174,13 @@ class GitHubAPIService: ObservableObject {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw GitHubAPIError.fetchFailed
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
         }
+        
+        try handleAPIResponse(httpResponse)
         
         return try JSONDecoder().decode([GitHubOrganization].self, from: data)
     }
@@ -172,14 +188,36 @@ class GitHubAPIService: ObservableObject {
     func clearValidation() {
         validationResult = nil
     }
+    
+    private func handleAPIResponse(_ response: HTTPURLResponse) throws {
+        switch response.statusCode {
+        case 200:
+            break
+        case 401:
+            throw GitHubAPIError.unauthorized
+        case 403:
+            if let rateLimitRemaining = response.value(forHTTPHeaderField: "X-RateLimit-Remaining"),
+               rateLimitRemaining == "0" {
+                throw GitHubAPIError.rateLimitExceeded
+            } else {
+                throw GitHubAPIError.forbidden
+            }
+        case 404:
+            throw GitHubAPIError.notFound
+        default:
+            throw GitHubAPIError.httpError(response.statusCode)
+        }
+    }
 }
 
 enum GitHubAPIError: Error, LocalizedError {
     case invalidURL
     case invalidResponse
     case unauthorized
+    case forbidden
+    case notFound
+    case rateLimitExceeded
     case httpError(Int)
-    case fetchFailed
     
     var errorDescription: String? {
         switch self {
@@ -189,10 +227,29 @@ enum GitHubAPIError: Error, LocalizedError {
             return "Invalid response from GitHub API"
         case .unauthorized:
             return "Invalid or expired GitHub token"
+        case .forbidden:
+            return "Access forbidden"
+        case .notFound:
+            return "Resource not found"
+        case .rateLimitExceeded:
+            return "GitHub API rate limit exceeded"
         case .httpError(let code):
             return "HTTP error: \(code)"
-        case .fetchFailed:
-            return "Failed to fetch data from GitHub API"
+        }
+    }
+    
+    var userFriendlyDescription: String {
+        switch self {
+        case .unauthorized:
+            return "Invalid or expired GitHub token. Please check your token."
+        case .rateLimitExceeded:
+            return "GitHub API rate limit exceeded. Please try again later."
+        case .forbidden:
+            return "Access denied. Please check your token permissions."
+        case .notFound:
+            return "Resource not found. Please check your token permissions."
+        default:
+            return "Unable to connect to GitHub. Please check your network connection."
         }
     }
 }

@@ -100,7 +100,9 @@ struct SettingsView: View {
         
         if success {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                NSApp.keyWindow?.close()
+                if let window = NSApp.keyWindow {
+                    window.close()
+                }
             }
         }
     }
@@ -247,5 +249,4 @@ struct TokenValidationResultView: View {
         .background(Color.red.opacity(0.1))
         .cornerRadius(8)
     }
-}
 }
