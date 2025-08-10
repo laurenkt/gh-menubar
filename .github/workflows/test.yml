@@ -13,8 +13,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Build
-      run: swift build -v
+    - name: Select Xcode
+      run: sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
 
-    - name: Run tests
-      run: ./.build/debug/MenuBarAppTests
+    - name: Build and Test
+      run: xcodebuild test -scheme MenuBarApp -destination 'platform=macOS'
