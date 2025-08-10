@@ -17,4 +17,17 @@ jobs:
       run: sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
 
     - name: Build and Test
-      run: xcodebuild test -scheme MenuBarApp -destination 'platform=macOS'
+      run: |
+        xcodebuild test -scheme MenuBarApp -destination 'platform=macOS' \
+          -resultBundlePath TestResults.xcresult \
+          -derivedDataPath ./DerivedData
+      continue-on-error: true
+    
+    - name: Parse test results
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: 'Test Results'
+        path: 'TestResults.xcresult'
+        reporter: 'xcode'
+        fail-on-error: true
