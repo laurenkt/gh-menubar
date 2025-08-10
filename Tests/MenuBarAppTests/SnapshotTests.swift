@@ -16,10 +16,13 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let mockSettings = AppSettings.shared
         mockSettings.hasAPIKeyForTesting = true
         
-        let view = AnyView(MenuBarExtraView()
-            .environmentObject(mockSettings))
+        let view = MenuBarExtraView()
+            .environmentObject(mockSettings)
+            .frame(width: 300, height: 200)
         
-        assertSnapshot(matching: view, as: .image(size: CGSize(width: 300, height: 200)))
+        let strategy = Snapshotting<AnyView, NSImage>.image
+        let anyView = AnyView(view)
+        assertSnapshot(matching: anyView, as: strategy)
     }
     
     func testMenuBarExtraViewWithoutAPIKey() {
@@ -27,26 +30,35 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let mockSettings = AppSettings.shared
         mockSettings.hasAPIKeyForTesting = false
         
-        let view = AnyView(MenuBarExtraView()
-            .environmentObject(mockSettings))
+        let view = MenuBarExtraView()
+            .environmentObject(mockSettings)
+            .frame(width: 300, height: 200)
         
-        assertSnapshot(matching: view, as: .image(size: CGSize(width: 300, height: 200)))
+        let strategy = Snapshotting<AnyView, NSImage>.image
+        let anyView = AnyView(view)
+        assertSnapshot(matching: anyView, as: strategy)
     }
     
     func testSettingsViewEmpty() {
-        let view = AnyView(SettingsView())
+        let view = SettingsView()
+            .frame(width: 500, height: 400)
         
-        assertSnapshot(matching: view, as: .image(size: CGSize(width: 500, height: 400)))
+        let strategy = Snapshotting<AnyView, NSImage>.image
+        let anyView = AnyView(view)
+        assertSnapshot(matching: anyView, as: strategy)
     }
     
     func testTokenValidationResultViewLoading() {
         let mockGitHubService = GitHubAPIService.shared
         mockGitHubService.setValidationStateForTesting(isValidating: true, result: nil)
         
-        let view = AnyView(TokenValidationResultView()
-            .environmentObject(mockGitHubService))
+        let view = TokenValidationResultView()
+            .environmentObject(mockGitHubService)
+            .frame(width: 300, height: 100)
         
-        assertSnapshot(matching: view, as: .image(size: CGSize(width: 300, height: 100)))
+        let strategy = Snapshotting<AnyView, NSImage>.image
+        let anyView = AnyView(view)
+        assertSnapshot(matching: anyView, as: strategy)
     }
     
     func testTokenValidationResultViewValid() {
@@ -59,10 +71,13 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let mockGitHubService = GitHubAPIService.shared
         mockGitHubService.setValidationStateForTesting(isValidating: false, result: mockResult)
         
-        let view = AnyView(TokenValidationResultView()
-            .environmentObject(mockGitHubService))
+        let view = TokenValidationResultView()
+            .environmentObject(mockGitHubService)
+            .frame(width: 400, height: 300)
         
-        assertSnapshot(matching: view, as: .image(size: CGSize(width: 400, height: 300)))
+        let strategy = Snapshotting<AnyView, NSImage>.image
+        let anyView = AnyView(view)
+        assertSnapshot(matching: anyView, as: strategy)
     }
     
     func testTokenValidationResultViewInvalid() {
@@ -75,9 +90,12 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let mockGitHubService = GitHubAPIService.shared
         mockGitHubService.setValidationStateForTesting(isValidating: false, result: mockResult)
         
-        let view = AnyView(TokenValidationResultView()
-            .environmentObject(mockGitHubService))
+        let view = TokenValidationResultView()
+            .environmentObject(mockGitHubService)
+            .frame(width: 300, height: 150)
         
-        assertSnapshot(matching: view, as: .image(size: CGSize(width: 300, height: 150)))
+        let strategy = Snapshotting<AnyView, NSImage>.image
+        let anyView = AnyView(view)
+        assertSnapshot(matching: anyView, as: strategy)
     }
 }
