@@ -20,9 +20,11 @@ final class MenuBarAppSnapshotTests: XCTestCase {
             .environmentObject(mockSettings)
             .frame(width: 300, height: 200)
         
-        let strategy = Snapshotting<AnyView, NSImage>.image
-        let anyView = AnyView(view)
-        assertSnapshot(matching: anyView, as: strategy)
+        // Use NSView-based snapshot testing instead of AnyView
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 300, height: 200)
+        
+        assertSnapshot(matching: hostingView, as: .image)
     }
     
     func testMenuBarExtraViewWithoutAPIKey() {
@@ -34,18 +36,22 @@ final class MenuBarAppSnapshotTests: XCTestCase {
             .environmentObject(mockSettings)
             .frame(width: 300, height: 200)
         
-        let strategy = Snapshotting<AnyView, NSImage>.image
-        let anyView = AnyView(view)
-        assertSnapshot(matching: anyView, as: strategy)
+        // Use NSView-based snapshot testing instead of AnyView
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 300, height: 200)
+        
+        assertSnapshot(matching: hostingView, as: .image)
     }
     
     func testSettingsViewEmpty() {
         let view = SettingsView()
             .frame(width: 500, height: 400)
         
-        let strategy = Snapshotting<AnyView, NSImage>.image
-        let anyView = AnyView(view)
-        assertSnapshot(matching: anyView, as: strategy)
+        // Use NSView-based snapshot testing instead of AnyView
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 500, height: 400)
+        
+        assertSnapshot(matching: hostingView, as: .image)
     }
     
     func testTokenValidationResultViewLoading() {
@@ -56,9 +62,11 @@ final class MenuBarAppSnapshotTests: XCTestCase {
             .environmentObject(mockGitHubService)
             .frame(width: 300, height: 100)
         
-        let strategy = Snapshotting<AnyView, NSImage>.image
-        let anyView = AnyView(view)
-        assertSnapshot(matching: anyView, as: strategy)
+        // Use NSView-based snapshot testing instead of AnyView
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 300, height: 100)
+        
+        assertSnapshot(matching: hostingView, as: .image)
     }
     
     func testTokenValidationResultViewValid() {
@@ -75,9 +83,11 @@ final class MenuBarAppSnapshotTests: XCTestCase {
             .environmentObject(mockGitHubService)
             .frame(width: 400, height: 300)
         
-        let strategy = Snapshotting<AnyView, NSImage>.image
-        let anyView = AnyView(view)
-        assertSnapshot(matching: anyView, as: strategy)
+        // Use NSView-based snapshot testing instead of AnyView
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 300)
+        
+        assertSnapshot(matching: hostingView, as: .image)
     }
     
     func testTokenValidationResultViewInvalid() {
@@ -94,8 +104,10 @@ final class MenuBarAppSnapshotTests: XCTestCase {
             .environmentObject(mockGitHubService)
             .frame(width: 300, height: 150)
         
-        let strategy = Snapshotting<AnyView, NSImage>.image
-        let anyView = AnyView(view)
-        assertSnapshot(matching: anyView, as: strategy)
+        // Use NSView-based snapshot testing instead of AnyView
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 300, height: 150)
+        
+        assertSnapshot(matching: hostingView, as: .image)
     }
 }
