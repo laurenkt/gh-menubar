@@ -7,14 +7,14 @@ let package = Package(
     platforms: [
         .macOS(.v13)
     ],
-    dependencies: [
-        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.15.0")
-    ],
     products: [
         .executable(
             name: "MenuBarApp",
             targets: ["MenuBarApp"]
         )
+    ],
+    dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.15.0")
     ],
     targets: [
         .executableTarget(
