@@ -174,42 +174,59 @@ struct PullRequestMenuItem: View {
     
     private func buildCompleteText() -> String {
         var parts: [String] = []
+        var currentGroup: [String] = []
         
-        // Always add the status symbol and title
-        parts.append("\(statusSymbol) \(pullRequest.title)")
-        
-        // Build the info part
-        var infoParts: [String] = []
-        
-        // Add organization name if enabled
-        if queryConfig.showOrgName, let orgName = pullRequest.repositoryOwner, !orgName.isEmpty {
-            infoParts.append(orgName)
+        for component in queryConfig.componentOrder {
+            switch component {
+            case .statusSymbol:
+                if !currentGroup.isEmpty {
+                    parts.append(currentGroup.joined(separator: " "))
+                    currentGroup = []
+                }
+                parts.append(statusSymbol)
+                
+            case .title:
+                if !currentGroup.isEmpty {
+                    parts.append(currentGroup.joined(separator: " "))
+                    currentGroup = []
+                }
+                parts.append(pullRequest.title)
+                
+            case .separator:
+                if !currentGroup.isEmpty {
+                    parts.append(currentGroup.joined(separator: " "))
+                    currentGroup = []
+                }
+                // Separator is handled by joining with " – "
+                
+            case .orgName:
+                if let orgName = pullRequest.repositoryOwner, !orgName.isEmpty {
+                    currentGroup.append(orgName)
+                }
+                
+            case .projectName:
+                if let repoName = pullRequest.repositoryName, !repoName.isEmpty {
+                    currentGroup.append(repoName)
+                }
+                
+            case .prNumber:
+                currentGroup.append("#\(pullRequest.number)")
+                
+            case .authorName:
+                if !pullRequest.user.login.isEmpty {
+                    currentGroup.append("@\(pullRequest.user.login)")
+                }
+            }
         }
         
-        // Add project name if enabled
-        if queryConfig.showProjectName, let repoName = pullRequest.repositoryName, !repoName.isEmpty {
-            infoParts.append(repoName)
+        if !currentGroup.isEmpty {
+            parts.append(currentGroup.joined(separator: " "))
         }
         
-        // Add PR number if enabled
-        if queryConfig.showPRNumber {
-            infoParts.append("#\(pullRequest.number)")
-        }
-        
-        // Add author name if enabled
-        if queryConfig.showAuthorName, !pullRequest.user.login.isEmpty {
-            infoParts.append("@\(pullRequest.user.login)")
-        }
-        
-        // Join info parts and add to main parts if not empty
-        if !infoParts.isEmpty {
-            parts.append(infoParts.joined(separator: " "))
-        }
-        
-        let result = parts.joined(separator: " - ")
+        let result = parts.joined(separator: " – ")
         
         #if DEBUG
-        print("buildCompleteText for query '\(queryConfig.title)': showOrgName=\(queryConfig.showOrgName), showProjectName=\(queryConfig.showProjectName), showPRNumber=\(queryConfig.showPRNumber), showAuthorName=\(queryConfig.showAuthorName)")
+        print("buildCompleteText for query '\(queryConfig.title)' with component order: \(queryConfig.componentOrder.map(\.rawValue))")
         print("buildCompleteText result: '\(result)'")
         print("repositoryOwner: \(pullRequest.repositoryOwner ?? "nil")")
         print("repositoryName: \(pullRequest.repositoryName ?? "nil")")
