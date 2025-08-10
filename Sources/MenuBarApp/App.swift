@@ -47,13 +47,13 @@ struct MenuBarExtraView: View {
                                     .disabled(true)
                             } else {
                                 ForEach(queryResult.pullRequests) { pr in
-                                    PullRequestMenuItem(pullRequest: pr)
+                                    PullRequestMenuItem(pullRequest: pr, queryConfig: queryResult.query)
                                 }
                             }
                         }
                     } else {
                         ForEach(queryResult.pullRequests) { pr in
-                            PullRequestMenuItem(pullRequest: pr)
+                            PullRequestMenuItem(pullRequest: pr, queryConfig: queryResult.query)
                         }
                     }
                 }
@@ -90,6 +90,7 @@ struct MenuBarExtraView: View {
 
 struct PullRequestMenuItem: View {
     let pullRequest: GitHubPullRequest
+    let queryConfig: QueryConfiguration
     
     private var statusSymbol: String {
         switch pullRequest.checkStatus {
@@ -125,15 +126,7 @@ struct PullRequestMenuItem: View {
                     }
                 }
             } label: {
-                HStack {
-                    Text("\(statusSymbol) \(pullRequest.title)")
-                    Spacer()
-                    if let repoName = pullRequest.repositoryName {
-                        Text("\(repoName) #\(pullRequest.number)")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                    }
-                }
+                Text(buildCompleteText())
             }
         } else {
             Button(action: {
@@ -141,15 +134,7 @@ struct PullRequestMenuItem: View {
                     NSWorkspace.shared.open(url)
                 }
             }) {
-                HStack {
-                    Text("\(statusSymbol) \(pullRequest.title)")
-                    Spacer()
-                    if let repoName = pullRequest.repositoryName {
-                        Text("\(repoName) #\(pullRequest.number)")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                    }
-                }
+                Text(buildCompleteText())
             }
         }
     }
@@ -172,6 +157,79 @@ struct PullRequestMenuItem: View {
         } else {
             return "?"
         }
+    }
+    
+    private func buildCompleteText() -> String {
+        var parts: [String] = []
+        
+        // Always add the status symbol and title
+        parts.append("\(statusSymbol) \(pullRequest.title)")
+        
+        // Build the info part
+        var infoParts: [String] = []
+        
+        // Add organization name if enabled
+        if queryConfig.showOrgName, let orgName = pullRequest.repositoryOwner, !orgName.isEmpty {
+            infoParts.append(orgName)
+        }
+        
+        // Add project name if enabled
+        if queryConfig.showProjectName, let repoName = pullRequest.repositoryName, !repoName.isEmpty {
+            infoParts.append(repoName)
+        }
+        
+        // Add PR number if enabled
+        if queryConfig.showPRNumber {
+            infoParts.append("#\(pullRequest.number)")
+        }
+        
+        // Add author name if enabled
+        if queryConfig.showAuthorName, !pullRequest.user.login.isEmpty {
+            infoParts.append("@\(pullRequest.user.login)")
+        }
+        
+        // Join info parts and add to main parts if not empty
+        if !infoParts.isEmpty {
+            parts.append(infoParts.joined(separator: " "))
+        }
+        
+        let result = parts.joined(separator: " - ")
+        
+        #if DEBUG
+        print("buildCompleteText for query '\(queryConfig.title)': showOrgName=\(queryConfig.showOrgName), showProjectName=\(queryConfig.showProjectName), showPRNumber=\(queryConfig.showPRNumber), showAuthorName=\(queryConfig.showAuthorName)")
+        print("buildCompleteText result: '\(result)'")
+        print("repositoryOwner: \(pullRequest.repositoryOwner ?? "nil")")
+        print("repositoryName: \(pullRequest.repositoryName ?? "nil")")
+        print("user.login: \(pullRequest.user.login)")
+        #endif
+        
+        return result
+    }
+    
+    private func buildInfoText() -> String {
+        var components: [String] = []
+        
+        // Add organization name if enabled
+        if queryConfig.showOrgName, let orgName = pullRequest.repositoryOwner, !orgName.isEmpty {
+            components.append(orgName)
+        }
+        
+        // Add project name if enabled
+        if queryConfig.showProjectName, let repoName = pullRequest.repositoryName, !repoName.isEmpty {
+            components.append(repoName)
+        }
+        
+        // Add PR number if enabled
+        if queryConfig.showPRNumber {
+            components.append("#\(pullRequest.number)")
+        }
+        
+        // Add author name if enabled
+        if queryConfig.showAuthorName, !pullRequest.user.login.isEmpty {
+            components.append("@\(pullRequest.user.login)")
+        }
+        
+        return components.joined(separator: " ")
     }
 }
 

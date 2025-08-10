@@ -1,5 +1,9 @@
 import SwiftUI
 
+extension Notification.Name {
+    static let queriesUpdated = Notification.Name("queriesUpdated")
+}
+
 struct SettingsView: View {
     @StateObject private var appSettings = AppSettings.shared
     @StateObject private var githubService = GitHubAPIService.shared
@@ -355,7 +359,10 @@ struct QueriesSettingsView: View {
                 onSave: { updatedQuery in
                     if let index = appSettings.queries.firstIndex(where: { $0.id == query.id }) {
                         appSettings.updateQuery(at: index, with: updatedQuery)
+                        // Trigger a notification that queries have been updated
+                        NotificationCenter.default.post(name: .queriesUpdated, object: nil)
                     }
+                    editingQuery = nil
                 }
             )
         }
@@ -400,57 +407,177 @@ struct QueryRowView: View {
 struct QueryEditSheet: View {
     @State private var title: String
     @State private var query: String
+    @State private var showOrgName: Bool
+    @State private var showProjectName: Bool
+    @State private var showPRNumber: Bool
+    @State private var showAuthorName: Bool
+    @State private var includeInFailingChecksCount: Bool
+    @State private var includeInPendingReviewsCount: Bool
     @Environment(\.dismiss) private var dismiss
     
+    let originalQuery: QueryConfiguration
     let onSave: (QueryConfiguration) -> Void
     
     init(query: QueryConfiguration, onSave: @escaping (QueryConfiguration) -> Void) {
+        self.originalQuery = query
         self._title = State(initialValue: query.title)
         self._query = State(initialValue: query.query)
+        self._showOrgName = State(initialValue: query.showOrgName)
+        self._showProjectName = State(initialValue: query.showProjectName)
+        self._showPRNumber = State(initialValue: query.showPRNumber)
+        self._showAuthorName = State(initialValue: query.showAuthorName)
+        self._includeInFailingChecksCount = State(initialValue: query.includeInFailingChecksCount)
+        self._includeInPendingReviewsCount = State(initialValue: query.includeInPendingReviewsCount)
         self.onSave = onSave
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Edit Query")
-                .font(.title2)
-                .bold()
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Title:")
-                    .font(.headline)
-                TextField("Query title", text: $title)
-                    .textFieldStyle(.roundedBorder)
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Query:")
-                    .font(.headline)
-                TextField("GitHub search query", text: $query)
-                    .textFieldStyle(.roundedBorder)
-                
-                Text("Examples: is:open is:pr author:@me, is:open is:pr review-requested:@me")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            HStack {
-                Button("Cancel") {
-                    dismiss()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Edit Query")
+                    .font(.title2)
+                    .bold()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Title:")
+                        .font(.headline)
+                    TextField("Query title", text: $title)
+                        .textFieldStyle(.roundedBorder)
                 }
                 
-                Spacer()
-                
-                Button("Save") {
-                    let updatedQuery = QueryConfiguration(title: title, query: query)
-                    onSave(updatedQuery)
-                    dismiss()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Query:")
+                        .font(.headline)
+                    TextField("GitHub search query", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                    
+                    Text("Examples: is:open is:pr author:@me, is:open is:pr review-requested:@me")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .keyboardShortcut(.defaultAction)
-                .disabled(title.isEmpty || query.isEmpty)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Display Options:")
+                        .font(.headline)
+                    
+                    HStack(alignment: .top, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("Show organization name", isOn: $showOrgName)
+                            Toggle("Show project name", isOn: $showProjectName)
+                            Toggle("Show PR number", isOn: $showPRNumber)
+                            Toggle("Show author name", isOn: $showAuthorName)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Preview:")
+                                .font(.subheadline)
+                                .bold()
+                            
+                            PreviewPRItem(
+                                showOrgName: showOrgName,
+                                showProjectName: showProjectName,
+                                showPRNumber: showPRNumber,
+                                showAuthorName: showAuthorName
+                            )
+                        }
+                        .frame(minWidth: 200)
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Menu Bar Count Options:")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Include in failing PR checks count", isOn: $includeInFailingChecksCount)
+                        Toggle("Include in pending reviews count", isOn: $includeInPendingReviewsCount)
+                    }
+                    
+                    Text("Controls whether PRs from this query contribute to the menu bar notification count")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    
+                    Spacer()
+                    
+                    Button("Save") {
+                        let updatedQuery = originalQuery.updated(
+                            title: title,
+                            query: query,
+                            showOrgName: showOrgName,
+                            showProjectName: showProjectName,
+                            showPRNumber: showPRNumber,
+                            showAuthorName: showAuthorName,
+                            includeInFailingChecksCount: includeInFailingChecksCount,
+                            includeInPendingReviewsCount: includeInPendingReviewsCount
+                        )
+                        onSave(updatedQuery)
+                        dismiss()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(title.isEmpty || query.isEmpty)
+                }
             }
         }
         .padding(20)
-        .frame(width: 400)
+        .frame(width: 600, height: 600)
+    }
+}
+
+struct PreviewPRItem: View {
+    let showOrgName: Bool
+    let showProjectName: Bool
+    let showPRNumber: Bool
+    let showAuthorName: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Menu item will look like:")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            
+            Text(buildCompleteText())
+                .font(.system(.body, design: .monospaced))
+                .padding(8)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(6)
+        }
+    }
+    
+    private func buildCompleteText() -> String {
+        var parts: [String] = []
+        
+        // Always add the status symbol and title
+        parts.append("✓ Fix login validation bug")
+        
+        // Build the info part
+        var infoParts: [String] = []
+        
+        if showOrgName {
+            infoParts.append("acme-corp")
+        }
+        
+        if showProjectName {
+            infoParts.append("mobile-app")
+        }
+        
+        if showPRNumber {
+            infoParts.append("#1234")
+        }
+        
+        if showAuthorName {
+            infoParts.append("@johndoe")
+        }
+        
+        // Join info parts and add to main parts if not empty
+        if !infoParts.isEmpty {
+            parts.append(infoParts.joined(separator: " "))
+        }
+        
+        return parts.joined(separator: " - ")
     }
 }

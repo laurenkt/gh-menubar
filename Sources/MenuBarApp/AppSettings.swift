@@ -6,10 +6,103 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     var title: String
     var query: String
     
-    init(title: String, query: String) {
+    // Display preferences
+    var showOrgName: Bool
+    var showProjectName: Bool
+    var showPRNumber: Bool
+    var showAuthorName: Bool
+    
+    // Menu bar count preferences
+    var includeInFailingChecksCount: Bool
+    var includeInPendingReviewsCount: Bool
+    
+    // Custom decoder for backward compatibility
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        query = try container.decode(String.self, forKey: .query)
+        
+        // New fields with defaults for backward compatibility
+        showOrgName = try container.decodeIfPresent(Bool.self, forKey: .showOrgName) ?? true
+        showProjectName = try container.decodeIfPresent(Bool.self, forKey: .showProjectName) ?? true
+        showPRNumber = try container.decodeIfPresent(Bool.self, forKey: .showPRNumber) ?? true
+        showAuthorName = try container.decodeIfPresent(Bool.self, forKey: .showAuthorName) ?? false
+        includeInFailingChecksCount = try container.decodeIfPresent(Bool.self, forKey: .includeInFailingChecksCount) ?? true
+        includeInPendingReviewsCount = try container.decodeIfPresent(Bool.self, forKey: .includeInPendingReviewsCount) ?? true
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, title, query
+        case showOrgName, showProjectName, showPRNumber, showAuthorName
+        case includeInFailingChecksCount, includeInPendingReviewsCount
+    }
+    
+    init(title: String, query: String, 
+         showOrgName: Bool = true,
+         showProjectName: Bool = true,
+         showPRNumber: Bool = true,
+         showAuthorName: Bool = false,
+         includeInFailingChecksCount: Bool = true,
+         includeInPendingReviewsCount: Bool = true) {
         self.id = UUID()
         self.title = title
         self.query = query
+        self.showOrgName = showOrgName
+        self.showProjectName = showProjectName
+        self.showPRNumber = showPRNumber
+        self.showAuthorName = showAuthorName
+        self.includeInFailingChecksCount = includeInFailingChecksCount
+        self.includeInPendingReviewsCount = includeInPendingReviewsCount
+    }
+    
+    mutating func update(
+        title: String? = nil,
+        query: String? = nil,
+        showOrgName: Bool? = nil,
+        showProjectName: Bool? = nil,
+        showPRNumber: Bool? = nil,
+        showAuthorName: Bool? = nil,
+        includeInFailingChecksCount: Bool? = nil,
+        includeInPendingReviewsCount: Bool? = nil
+    ) {
+        if let title = title { self.title = title }
+        if let query = query { self.query = query }
+        if let showOrgName = showOrgName { self.showOrgName = showOrgName }
+        if let showProjectName = showProjectName { self.showProjectName = showProjectName }
+        if let showPRNumber = showPRNumber { self.showPRNumber = showPRNumber }
+        if let showAuthorName = showAuthorName { self.showAuthorName = showAuthorName }
+        if let includeInFailingChecksCount = includeInFailingChecksCount { 
+            self.includeInFailingChecksCount = includeInFailingChecksCount 
+        }
+        if let includeInPendingReviewsCount = includeInPendingReviewsCount { 
+            self.includeInPendingReviewsCount = includeInPendingReviewsCount 
+        }
+    }
+    
+    func updated(
+        title: String? = nil,
+        query: String? = nil,
+        showOrgName: Bool? = nil,
+        showProjectName: Bool? = nil,
+        showPRNumber: Bool? = nil,
+        showAuthorName: Bool? = nil,
+        includeInFailingChecksCount: Bool? = nil,
+        includeInPendingReviewsCount: Bool? = nil
+    ) -> QueryConfiguration {
+        var copy = self
+        copy.update(
+            title: title,
+            query: query,
+            showOrgName: showOrgName,
+            showProjectName: showProjectName,
+            showPRNumber: showPRNumber,
+            showAuthorName: showAuthorName,
+            includeInFailingChecksCount: includeInFailingChecksCount,
+            includeInPendingReviewsCount: includeInPendingReviewsCount
+        )
+        return copy
     }
     
     static let defaultQuery = QueryConfiguration(title: "My Open PRs", query: "is:open is:pr author:@me")
