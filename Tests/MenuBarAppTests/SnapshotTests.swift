@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import AppKit
 import SnapshotTesting
 @testable import MenuBarApp
 
@@ -18,7 +19,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = MenuBarExtraView()
             .environmentObject(mockSettings)
         
-        assertSnapshot(matching: view as any View, as: .image(size: CGSize(width: 300, height: 200)))
+        assertSnapshot(matching: view as any View, as: Snapshotting<AnyView, NSImage>.image(size: CGSize(width: 300, height: 200)))
     }
     
     func testMenuBarExtraViewWithoutAPIKey() {
@@ -29,13 +30,13 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = MenuBarExtraView()
             .environmentObject(mockSettings)
         
-        assertSnapshot(matching: view as any View, as: .image(size: CGSize(width: 300, height: 200)))
+        assertSnapshot(matching: view as any View, as: Snapshotting<AnyView, NSImage>.image(size: CGSize(width: 300, height: 200)))
     }
     
     func testSettingsViewEmpty() {
         let view = SettingsView()
         
-        assertSnapshot(matching: view as any View, as: .image(size: CGSize(width: 300, height: 200)))
+        assertSnapshot(matching: view as any View, as: Snapshotting<AnyView, NSImage>.image(size: CGSize(width: 300, height: 200)))
     }
     
     func testTokenValidationResultViewLoading() {
@@ -45,7 +46,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = TokenValidationResultView()
             .environmentObject(mockGitHubService)
         
-        assertSnapshot(matching: view as any View, as: .image(size: CGSize(width: 300, height: 200)))
+        assertSnapshot(matching: view as any View, as: Snapshotting<AnyView, NSImage>.image(size: CGSize(width: 300, height: 200)))
     }
     
     func testTokenValidationResultViewValid() {
@@ -61,7 +62,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = TokenValidationResultView()
             .environmentObject(mockGitHubService)
         
-        assertSnapshot(matching: view as any View, as: .image(size: CGSize(width: 300, height: 200)))
+        assertSnapshot(matching: view as any View, as: Snapshotting<AnyView, NSImage>.image(size: CGSize(width: 300, height: 200)))
     }
     
     func testTokenValidationResultViewInvalid() {
@@ -77,6 +78,6 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = TokenValidationResultView()
             .environmentObject(mockGitHubService)
         
-        assertSnapshot(matching: view as any View, as: .image(size: CGSize(width: 300, height: 200)))
+        assertSnapshot(matching: view as any View, as: Snapshotting<AnyView, NSImage>.image(size: CGSize(width: 300, height: 200)))
     }
 }
