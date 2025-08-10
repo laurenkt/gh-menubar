@@ -435,99 +435,96 @@ struct QueryEditSheet: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Edit Query")
-                    .font(.title2)
-                    .bold()
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Title:")
-                        .font(.headline)
-                    TextField("Query title", text: $title)
-                        .textFieldStyle(.roundedBorder)
-                }
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Edit Query")
+                .font(.title2)
+                .bold()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Title:")
+                    .font(.headline)
+                TextField("Query title", text: $title)
+                    .textFieldStyle(.roundedBorder)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Query:")
+                    .font(.headline)
+                TextField("GitHub search query", text: $query)
+                    .textFieldStyle(.roundedBorder)
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Query:")
-                        .font(.headline)
-                    TextField("GitHub search query", text: $query)
-                        .textFieldStyle(.roundedBorder)
-                    
-                    Text("Examples: is:open is:pr author:@me, is:open is:pr review-requested:@me")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                Text("Examples: is:open is:pr author:@me, is:open is:pr review-requested:@me")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Display Options:")
+                    .font(.headline)
                 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Display Options:")
-                        .font(.headline)
-                    
-                    HStack(alignment: .top, spacing: 20) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Toggle("Show organization name", isOn: $showOrgName)
-                            Toggle("Show project name", isOn: $showProjectName)
-                            Toggle("Show PR number", isOn: $showPRNumber)
-                            Toggle("Show author name", isOn: $showAuthorName)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Preview:")
-                                .font(.subheadline)
-                                .bold()
-                            
-                            PreviewPRItem(
-                                showOrgName: showOrgName,
-                                showProjectName: showProjectName,
-                                showPRNumber: showPRNumber,
-                                showAuthorName: showAuthorName
-                            )
-                        }
-                        .frame(minWidth: 200)
+                HStack(alignment: .top, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Show organization name", isOn: $showOrgName)
+                        Toggle("Show project name", isOn: $showProjectName)
+                        Toggle("Show PR number", isOn: $showPRNumber)
+                        Toggle("Show author name", isOn: $showAuthorName)
                     }
-                }
-                
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Menu Bar Count Options:")
-                        .font(.headline)
                     
                     VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Include in failing PR checks count", isOn: $includeInFailingChecksCount)
-                        Toggle("Include in pending reviews count", isOn: $includeInPendingReviewsCount)
-                    }
-                    
-                    Text("Controls whether PRs from this query contribute to the menu bar notification count")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    
-                    Spacer()
-                    
-                    Button("Save") {
-                        let updatedQuery = originalQuery.updated(
-                            title: title,
-                            query: query,
+                        Text("Preview:")
+                            .font(.subheadline)
+                            .bold()
+                        
+                        PreviewPRItem(
                             showOrgName: showOrgName,
                             showProjectName: showProjectName,
                             showPRNumber: showPRNumber,
-                            showAuthorName: showAuthorName,
-                            includeInFailingChecksCount: includeInFailingChecksCount,
-                            includeInPendingReviewsCount: includeInPendingReviewsCount
+                            showAuthorName: showAuthorName
                         )
-                        onSave(updatedQuery)
-                        dismiss()
                     }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(title.isEmpty || query.isEmpty)
+                    .frame(minWidth: 200)
                 }
+            }
+            
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Menu Bar Count Options:")
+                    .font(.headline)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Include in failing PR checks count", isOn: $includeInFailingChecksCount)
+                    Toggle("Include in pending reviews count", isOn: $includeInPendingReviewsCount)
+                }
+                
+                Text("Controls whether PRs from this query contribute to the menu bar notification count")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+                
+                Spacer()
+                
+                Button("Save") {
+                    let updatedQuery = originalQuery.updated(
+                        title: title,
+                        query: query,
+                        showOrgName: showOrgName,
+                        showProjectName: showProjectName,
+                        showPRNumber: showPRNumber,
+                        showAuthorName: showAuthorName,
+                        includeInFailingChecksCount: includeInFailingChecksCount,
+                        includeInPendingReviewsCount: includeInPendingReviewsCount
+                    )
+                    onSave(updatedQuery)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(title.isEmpty || query.isEmpty)
             }
         }
         .padding(20)
-        .frame(width: 600, height: 600)
     }
 }
 
