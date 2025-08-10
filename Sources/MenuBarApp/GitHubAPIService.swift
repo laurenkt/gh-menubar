@@ -177,9 +177,11 @@ struct GitHubCheckRun: Codable, Identifiable {
     let output: CheckRunOutput?
     let htmlUrl: String?
     let detailsUrl: String?
+    let app: CheckRunApp?
+    var jobs: [GitHubWorkflowJob] = []
     
     enum CodingKeys: String, CodingKey {
-        case id, status, conclusion, name, output
+        case id, status, conclusion, name, output, app
         case headSha = "head_sha"
         case startedAt = "started_at"
         case completedAt = "completed_at"
@@ -202,6 +204,25 @@ struct GitHubCheckRun: Codable, Identifiable {
     var isInProgress: Bool {
         status == "in_progress" || status == "queued"
     }
+    
+    var isGitHubActions: Bool {
+        app?.slug == "github-actions"
+    }
+    
+    var workflowRunId: Int? {
+        guard let detailsUrl = detailsUrl,
+              let url = URL(string: detailsUrl) else { return nil }
+        
+        // GitHub Actions details URLs have format: 
+        // https://github.com/owner/repo/actions/runs/{run_id}/job/{job_id}
+        let pathComponents = url.pathComponents
+        if let runsIndex = pathComponents.firstIndex(of: "runs"),
+           runsIndex + 1 < pathComponents.count,
+           let runId = Int(pathComponents[runsIndex + 1]) {
+            return runId
+        }
+        return nil
+    }
 }
 
 struct CheckRunOutput: Codable {
@@ -215,11 +236,117 @@ struct CheckRunOutput: Codable {
     }
 }
 
+struct CheckRunApp: Codable {
+    let id: Int
+    let slug: String
+    let name: String
+}
+
+struct GitHubWorkflowJob: Codable, Identifiable {
+    let id: Int
+    let runId: Int
+    let runUrl: String
+    let nodeId: String
+    let headSha: String
+    let url: String
+    let htmlUrl: String?
+    let status: String
+    let conclusion: String?
+    let createdAt: Date
+    let startedAt: Date
+    let completedAt: Date?
+    let name: String
+    let steps: [GitHubWorkflowStep]
+    let checkRunUrl: String?
+    let labels: [String]
+    let runnerId: Int?
+    let runnerName: String?
+    let runnerGroupId: Int?
+    let runnerGroupName: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, status, conclusion, name, steps, labels
+        case runId = "run_id"
+        case runUrl = "run_url"
+        case nodeId = "node_id"
+        case headSha = "head_sha"
+        case url
+        case htmlUrl = "html_url"
+        case createdAt = "created_at"
+        case startedAt = "started_at"
+        case completedAt = "completed_at"
+        case checkRunUrl = "check_run_url"
+        case runnerId = "runner_id"
+        case runnerName = "runner_name"
+        case runnerGroupId = "runner_group_id"
+        case runnerGroupName = "runner_group_name"
+    }
+    
+    var isComplete: Bool {
+        status == "completed"
+    }
+    
+    var isSuccessful: Bool {
+        conclusion == "success"
+    }
+    
+    var isFailed: Bool {
+        conclusion == "failure"
+    }
+    
+    var isInProgress: Bool {
+        status == "in_progress" || status == "queued"
+    }
+}
+
+struct GitHubWorkflowStep: Codable, Identifiable {
+    let name: String
+    let status: String
+    let conclusion: String?
+    let number: Int
+    let startedAt: Date?
+    let completedAt: Date?
+    
+    enum CodingKeys: String, CodingKey {
+        case name, status, conclusion, number
+        case startedAt = "started_at"
+        case completedAt = "completed_at"
+    }
+    
+    var id: Int { number }
+    
+    var isComplete: Bool {
+        status == "completed"
+    }
+    
+    var isSuccessful: Bool {
+        conclusion == "success"
+    }
+    
+    var isFailed: Bool {
+        conclusion == "failure"
+    }
+    
+    var isInProgress: Bool {
+        status == "in_progress" || status == "queued"
+    }
+}
+
 struct GitHubCheckRunsResponse: Codable {
     let checkRuns: [GitHubCheckRun]
     
     enum CodingKeys: String, CodingKey {
         case checkRuns = "check_runs"
+    }
+}
+
+struct GitHubWorkflowJobsResponse: Codable {
+    let totalCount: Int
+    let jobs: [GitHubWorkflowJob]
+    
+    enum CodingKeys: String, CodingKey {
+        case totalCount = "total_count"
+        case jobs
     }
 }
 
@@ -544,6 +671,39 @@ class GitHubAPIService: ObservableObject {
         try handleAPIResponse(httpResponse)
         
         return try jsonDecoder.decode(GitHubPullRequestDetails.self, from: data)
+    }
+    
+    func fetchWorkflowJobs(for owner: String, repo: String, runId: Int, token: String) async throws -> [GitHubWorkflowJob] {
+        guard let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/actions/runs/\(runId)/jobs") else {
+            throw GitHubAPIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        
+        let (data, response) = try await urlSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
+        }
+        
+        try handleAPIResponse(httpResponse)
+        
+        do {
+            let jobsResponse = try jsonDecoder.decode(GitHubWorkflowJobsResponse.self, from: data)
+            return jobsResponse.jobs
+        } catch {
+            #if DEBUG
+            print("Workflow jobs JSON decoding error: \(error)")
+            if let responseString = String(data: data, encoding: .utf8) {
+                let truncated = String(responseString.prefix(200))
+                print("Response preview: \(truncated)...")
+            }
+            #endif
+            throw error
+        }
     }
     
     private func handleAPIResponse(_ response: HTTPURLResponse) throws {

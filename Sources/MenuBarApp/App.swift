@@ -132,10 +132,56 @@ struct PullRequestMenuItem: View {
                 Divider()
                 
                 ForEach(pullRequest.checkRuns) { checkRun in
-                    Button(action: {
-                        openCheckRun(checkRun)
-                    }) {
-                        Text("\(checkRunStatusSymbol(checkRun)) \(checkRun.name)")
+                    if checkRun.isGitHubActions && !checkRun.jobs.isEmpty {
+                        Menu {
+                            Button(action: {
+                                openCheckRun(checkRun)
+                            }) {
+                                Text("Open Check Run")
+                            }
+                            
+                            Divider()
+                            
+                            ForEach(checkRun.jobs) { job in
+                                if !job.steps.isEmpty {
+                                    Menu {
+                                        Button(action: {
+                                            openWorkflowJob(job)
+                                        }) {
+                                            Text("Open Job")
+                                        }
+                                        
+                                        Divider()
+                                        
+                                        ForEach(job.steps) { step in
+                                            Button(action: {
+                                                // Steps don't have individual URLs, open the job
+                                                openWorkflowJob(job)
+                                            }) {
+                                                Text("\(stepStatusSymbol(step)) \(step.name)")
+                                            }
+                                            .disabled(true) // Steps don't have individual URLs
+                                        }
+                                    } label: {
+                                        Text("\(jobStatusSymbol(job)) \(job.name)")
+                                    }
+                                } else {
+                                    Button(action: {
+                                        openWorkflowJob(job)
+                                    }) {
+                                        Text("\(jobStatusSymbol(job)) \(job.name)")
+                                    }
+                                }
+                            }
+                        } label: {
+                            Text("\(checkRunStatusSymbol(checkRun)) \(checkRun.name)")
+                        }
+                    } else {
+                        Button(action: {
+                            openCheckRun(checkRun)
+                        }) {
+                            Text("\(checkRunStatusSymbol(checkRun)) \(checkRun.name)")
+                        }
                     }
                 }
             } label: {
@@ -160,12 +206,42 @@ struct PullRequestMenuItem: View {
         }
     }
     
+    private func openWorkflowJob(_ job: GitHubWorkflowJob) {
+        if let htmlUrl = job.htmlUrl, let url = URL(string: htmlUrl) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+    
     private func checkRunStatusSymbol(_ checkRun: GitHubCheckRun) -> String {
         if checkRun.isSuccessful {
             return "✅"
         } else if checkRun.isFailed {
             return "❌"
         } else if checkRun.isInProgress {
+            return "⏳"
+        } else {
+            return "?"
+        }
+    }
+    
+    private func jobStatusSymbol(_ job: GitHubWorkflowJob) -> String {
+        if job.isSuccessful {
+            return "✅"
+        } else if job.isFailed {
+            return "❌"
+        } else if job.isInProgress {
+            return "⏳"
+        } else {
+            return "?"
+        }
+    }
+    
+    private func stepStatusSymbol(_ step: GitHubWorkflowStep) -> String {
+        if step.isSuccessful {
+            return "✅"
+        } else if step.isFailed {
+            return "❌"
+        } else if step.isInProgress {
             return "⏳"
         } else {
             return "?"

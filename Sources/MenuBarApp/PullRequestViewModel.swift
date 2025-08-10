@@ -161,6 +161,45 @@ class PullRequestViewModel: ObservableObject {
                         }
                     }
                 }
+                
+                // Fetch workflow jobs for GitHub Actions check runs
+                for (resultIndex, queryResult) in results.enumerated() {
+                    await withTaskGroup(of: (Int, Int, [GitHubWorkflowJob]?).self) { group in
+                        for (prIndex, pr) in queryResult.pullRequests.enumerated() {
+                            guard let repoName = pr.repositoryName,
+                                  let repoOwner = extractOwnerFromRepositoryUrl(pr.repositoryUrl) else {
+                                continue
+                            }
+                            
+                            for (checkIndex, checkRun) in pr.checkRuns.enumerated() {
+                                if checkRun.isGitHubActions, let runId = checkRun.workflowRunId {
+                                    group.addTask {
+                                        do {
+                                            let jobs = try await self.apiService.fetchWorkflowJobs(
+                                                for: repoOwner,
+                                                repo: repoName,
+                                                runId: runId,
+                                                token: token
+                                            )
+                                            return (prIndex, checkIndex, jobs)
+                                        } catch {
+                                            #if DEBUG
+                                            print("Failed to fetch workflow jobs for check run \(checkRun.name): \(error)")
+                                            #endif
+                                            return (prIndex, checkIndex, nil)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        for await (prIndex, checkIndex, jobs) in group {
+                            if let jobs = jobs {
+                                results[resultIndex].pullRequests[prIndex].checkRuns[checkIndex].jobs = jobs
+                            }
+                        }
+                    }
+                }
             }
             
             // Sort results by query order from settings
