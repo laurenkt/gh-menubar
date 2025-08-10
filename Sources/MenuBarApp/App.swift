@@ -124,9 +124,13 @@ struct PullRequestRow: View {
                 }
                 
                 HStack {
-                    Text("#\(pullRequest.number)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 4) {
+                        Text("#\(pullRequest.number)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        
+                        CheckStatusIndicator(status: pullRequest.checkStatus)
+                    }
                     
                     if let repoName = pullRequest.repositoryName {
                         Text(repoName)
@@ -160,5 +164,49 @@ struct PullRequestRow: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+struct CheckStatusIndicator: View {
+    let status: CheckStatus
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 6, height: 6)
+            
+            if status != .unknown {
+                Text(statusText)
+                    .font(.caption2)
+                    .foregroundColor(statusColor)
+            }
+        }
+    }
+    
+    private var statusColor: Color {
+        switch status {
+        case .success:
+            return .green
+        case .failed:
+            return .red
+        case .inProgress:
+            return .orange
+        case .unknown:
+            return .secondary
+        }
+    }
+    
+    private var statusText: String {
+        switch status {
+        case .success:
+            return "✓"
+        case .failed:
+            return "✗"
+        case .inProgress:
+            return "⏳"
+        case .unknown:
+            return ""
+        }
     }
 }
