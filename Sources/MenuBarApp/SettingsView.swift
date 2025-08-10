@@ -356,7 +356,6 @@ struct QueriesSettingsView: View {
                     if let index = appSettings.queries.firstIndex(where: { $0.id == query.id }) {
                         appSettings.updateQuery(at: index, with: updatedQuery)
                     }
-                    editingQuery = nil
                 }
             )
         }
@@ -401,6 +400,7 @@ struct QueryRowView: View {
 struct QueryEditSheet: View {
     @State private var title: String
     @State private var query: String
+    @Environment(\.dismiss) private var dismiss
     
     let onSave: (QueryConfiguration) -> Void
     
@@ -436,9 +436,7 @@ struct QueryEditSheet: View {
             
             HStack {
                 Button("Cancel") {
-                    if let window = NSApp.keyWindow {
-                        window.close()
-                    }
+                    dismiss()
                 }
                 
                 Spacer()
@@ -446,6 +444,7 @@ struct QueryEditSheet: View {
                 Button("Save") {
                     let updatedQuery = QueryConfiguration(title: title, query: query)
                     onSave(updatedQuery)
+                    dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(title.isEmpty || query.isEmpty)
