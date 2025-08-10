@@ -36,12 +36,15 @@ class PullRequestViewModel: ObservableObject {
         
         for queryResult in queryResults {
             for pr in queryResult.pullRequests {
-                // Count PRs where user's review is requested
-                if queryResult.query.query.contains("review-requested:@me") {
+                // Count PRs where user's review is requested (only if query allows it)
+                if queryResult.query.query.contains("review-requested:@me") && 
+                   queryResult.query.includeInPendingReviewsCount {
                     count += 1
                 }
-                // Count PRs authored by user with failing checks
-                else if pr.user.login == userLogin && pr.hasFailingChecks {
+                // Count PRs authored by user with failing checks (only if query allows it)
+                else if pr.user.login == userLogin && 
+                        pr.hasFailingChecks && 
+                        queryResult.query.includeInFailingChecksCount {
                     count += 1
                 }
             }
@@ -52,6 +55,17 @@ class PullRequestViewModel: ObservableObject {
     
     init() {
         startAutoRefresh()
+        
+        // Listen for query updates from settings
+        NotificationCenter.default.addObserver(
+            forName: .queriesUpdated, 
+            object: nil, 
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refresh()
+            }
+        }
     }
     
     deinit {

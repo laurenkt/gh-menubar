@@ -84,6 +84,29 @@ struct GitHubPullRequest: Codable, Identifiable {
         return nil
     }
     
+    var repositoryOwner: String? {
+        // Extract owner from repository_url using robust regex parsing
+        // Format: https://api.github.com/repos/owner/repo
+        let pattern = #"^https://api\.github\.com/repos/([^/]+)/[^/]+(?:/.*)?$"#
+        do {
+            let regex = try NSRegularExpression(pattern: pattern, options: [])
+            let range = NSRange(repositoryUrl.startIndex..<repositoryUrl.endIndex, in: repositoryUrl)
+            if let match = regex.firstMatch(in: repositoryUrl, options: [], range: range) {
+                let ownerRange = Range(match.range(at: 1), in: repositoryUrl)
+                if let ownerRange = ownerRange {
+                    return String(repositoryUrl[ownerRange])
+                }
+            }
+        } catch {
+            // Fallback to original URL parsing if regex fails
+            if let url = URL(string: repositoryUrl),
+               url.pathComponents.count >= 3 {
+                return url.pathComponents[2]
+            }
+        }
+        return nil
+    }
+    
     var hasFailingChecks: Bool {
         checkRuns.contains { $0.isFailed }
     }
