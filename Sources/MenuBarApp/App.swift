@@ -108,13 +108,13 @@ struct PullRequestMenuItem: View {
     private var statusSymbol: String {
         switch pullRequest.checkStatus {
         case .success:
-            return "✓"
+            return "✅"
         case .failed:
-            return "✗"
+            return "❌"
         case .inProgress:
             return "⏳"
         case .unknown:
-            return pullRequest.draft ? "📝" : "•"
+            return pullRequest.draft ? "📝" : ""
         }
     }
     
@@ -162,9 +162,9 @@ struct PullRequestMenuItem: View {
     
     private func checkRunStatusSymbol(_ checkRun: GitHubCheckRun) -> String {
         if checkRun.isSuccessful {
-            return "✓"
+            return "✅"
         } else if checkRun.isFailed {
-            return "✗"
+            return "❌"
         } else if checkRun.isInProgress {
             return "⏳"
         } else {
