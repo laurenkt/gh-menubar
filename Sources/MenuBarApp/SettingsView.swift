@@ -455,6 +455,18 @@ struct QueryEditSheet: View {
                 Text("Examples: is:open is:pr author:@me, is:open is:pr review-requested:@me")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                
+                Link("GitHub search syntax documentation", destination: URL(string: "https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests")!)
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                    .underline()
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.pointingHand.set()
+                        } else {
+                            NSCursor.arrow.set()
+                        }
+                    }
             }
             
             VStack(alignment: .leading, spacing: 12) {
