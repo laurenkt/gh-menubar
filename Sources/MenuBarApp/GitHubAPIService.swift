@@ -461,6 +461,43 @@ class GitHubAPIService: ObservableObject {
         }
     }
     
+    func searchPullRequests(query: String, token: String) async throws -> [GitHubPullRequest] {
+        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        guard let url = URL(string: "\(baseURL)/search/issues?q=\(encodedQuery)&sort=updated&per_page=50") else {
+            throw GitHubAPIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        
+        let (data, response) = try await urlSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
+        }
+        
+        try handleAPIResponse(httpResponse)
+        
+        struct SearchResponse: Codable {
+            let items: [GitHubPullRequest]
+        }
+        
+        do {
+            let searchResponse = try jsonDecoder.decode(SearchResponse.self, from: data)
+            return searchResponse.items
+        } catch {
+            #if DEBUG
+            print("GitHub API JSON decoding error: \(error)")
+            if let responseString = String(data: data, encoding: .utf8) {
+                let truncated = String(responseString.prefix(200))
+                print("Response preview: \(truncated)...")
+            }
+            #endif
+            throw error
+        }
+    }
+    
     func fetchPullRequestDetails(owner: String, repo: String, number: Int, token: String) async throws -> GitHubPullRequestDetails {
         guard let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/pulls/\(number)") else {
             throw GitHubAPIError.invalidURL

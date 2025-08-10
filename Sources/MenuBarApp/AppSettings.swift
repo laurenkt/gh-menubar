@@ -1,6 +1,28 @@
 import SwiftUI
 import AppKit
 
+struct QueryConfiguration: Codable, Identifiable, Equatable {
+    let id: UUID
+    var title: String
+    var query: String
+    
+    init(title: String, query: String) {
+        self.id = UUID()
+        self.title = title
+        self.query = query
+    }
+    
+    static let defaultQuery = QueryConfiguration(title: "My Open PRs", query: "is:open is:pr author:@me")
+    
+    static let suggestedQueries = [
+        QueryConfiguration(title: "My Open PRs", query: "is:open is:pr author:@me"),
+        QueryConfiguration(title: "Review Requests", query: "is:open is:pr review-requested:@me"),
+        QueryConfiguration(title: "My Recent PRs", query: "is:pr author:@me sort:updated-desc"),
+        QueryConfiguration(title: "Team PRs", query: "is:open is:pr user:YOUR_ORG"),
+        QueryConfiguration(title: "Draft PRs", query: "is:open is:pr is:draft author:@me")
+    ]
+}
+
 class WindowDelegate: NSObject, NSWindowDelegate {
     static let shared = WindowDelegate()
     
@@ -15,9 +37,11 @@ class AppSettings: ObservableObject {
     
     @Published var hasAPIKey: Bool = false
     @Published var isSettingsPresented: Bool = false
+    @Published var queries: [QueryConfiguration] = []
     
     private let keychainManager = KeychainManager.shared
     private var settingsWindow: NSWindow?
+    private let queriesKey = "configuredQueries"
     
     // Testing support
     #if DEBUG
@@ -29,6 +53,7 @@ class AppSettings: ObservableObject {
     
     private init() {
         checkForExistingAPIKey()
+        loadQueries()
     }
     
     func checkForExistingAPIKey() {
@@ -77,5 +102,38 @@ class AppSettings: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
         settingsWindow?.makeFirstResponder(settingsWindow?.contentView)
+    }
+    
+    func loadQueries() {
+        if let data = UserDefaults.standard.data(forKey: queriesKey),
+           let decodedQueries = try? JSONDecoder().decode([QueryConfiguration].self, from: data) {
+            queries = decodedQueries
+        } else {
+            queries = [QueryConfiguration.defaultQuery]
+            saveQueries()
+        }
+    }
+    
+    func saveQueries() {
+        if let encoded = try? JSONEncoder().encode(queries) {
+            UserDefaults.standard.set(encoded, forKey: queriesKey)
+        }
+    }
+    
+    func addQuery(_ query: QueryConfiguration) {
+        queries.append(query)
+        saveQueries()
+    }
+    
+    func removeQuery(at index: Int) {
+        guard index >= 0 && index < queries.count else { return }
+        queries.remove(at: index)
+        saveQueries()
+    }
+    
+    func updateQuery(at index: Int, with query: QueryConfiguration) {
+        guard index >= 0 && index < queries.count else { return }
+        queries[index] = query
+        saveQueries()
     }
 }
