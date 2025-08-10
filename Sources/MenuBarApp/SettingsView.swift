@@ -15,38 +15,66 @@ struct SettingsView: View {
     
     enum SettingsTab: String, CaseIterable {
         case api = "API"
-        case queries = "Queries"
+        case queries = "Queries"  
         case general = "General"
+        
+        var icon: String {
+            switch self {
+            case .api: return "key.fill"
+            case .queries: return "magnifyingglass"
+            case .general: return "gearshape.fill"
+            }
+        }
+        
+        var displayName: String {
+            switch self {
+            case .api: return "API"
+            case .queries: return "Queries"
+            case .general: return "General"
+            }
+        }
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Picker("Settings", selection: $selectedTab) {
-                ForEach(SettingsTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+        NavigationSplitView {
+            // Sidebar
+            List(SettingsTab.allCases, id: \.self, selection: $selectedTab) { tab in
+                Label {
+                    Text(tab.displayName)
+                        .font(.system(.body))
+                } icon: {
+                    Image(systemName: tab.icon)
+                        .foregroundColor(.accentColor)
+                        .frame(width: 16, height: 16)
+                }
+                .tag(tab)
+            }
+            .navigationSplitViewColumnWidth(ideal: 200)
+            .listStyle(.sidebar)
+        } detail: {
+            // Detail view
+            Group {
+                switch selectedTab {
+                case .api:
+                    APISettingsView(
+                        apiKey: $apiKey,
+                        showAPIKey: $showAPIKey,
+                        showSaveAlert: $showSaveAlert,
+                        saveSuccess: $saveSuccess,
+                        saveAPIKey: saveAPIKey,
+                        removeAPIKey: removeAPIKey
+                    )
+                case .queries:
+                    QueriesSettingsView()
+                case .general:
+                    GeneralSettingsView()
                 }
             }
-            .pickerStyle(.segmented)
-            .padding(.bottom, 20)
-            
-            switch selectedTab {
-            case .api:
-                APISettingsView(
-                    apiKey: $apiKey,
-                    showAPIKey: $showAPIKey,
-                    showSaveAlert: $showSaveAlert,
-                    saveSuccess: $saveSuccess,
-                    saveAPIKey: saveAPIKey,
-                    removeAPIKey: removeAPIKey
-                )
-            case .queries:
-                QueriesSettingsView()
-            case .general:
-                GeneralSettingsView()
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(20)
         }
-        .padding(20)
-        .frame(width: 500)
+        .navigationSplitViewStyle(.balanced)
+        .frame(width: 700, height: 500)
         .alert(isPresented: $showSaveAlert) {
             Alert(
                 title: Text(saveSuccess ? "Success" : "Error"),

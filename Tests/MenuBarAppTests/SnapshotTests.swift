@@ -55,11 +55,11 @@ final class MenuBarAppSnapshotTests: XCTestCase {
     
     func testSettingsViewEmpty() {
         let view = SettingsView()
-            .frame(width: 500, height: 400)
+            .frame(width: 700, height: 500)
         
         // Use NSView-based snapshot testing instead of AnyView
         let hostingView = NSHostingView(rootView: view)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 500, height: 400)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 700, height: 500)
         
         assertSnapshot(of: hostingView, as: .image)
     }
