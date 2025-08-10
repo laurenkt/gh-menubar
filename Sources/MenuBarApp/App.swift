@@ -30,6 +30,12 @@ struct MenuBarExtraView: View {
     @StateObject private var appSettings = AppSettings.shared
     @ObservedObject var viewModel: PullRequestViewModel
     
+    private func formatLastRefreshTime(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
     var body: some View {
         if appSettings.hasAPIKey {
             if let error = viewModel.errorMessage {
@@ -66,6 +72,13 @@ struct MenuBarExtraView: View {
             }
             .keyboardShortcut("r")
             .disabled(viewModel.isLoading)
+            
+            if let lastRefresh = viewModel.lastRefreshTime {
+                Text("Last updated: \(formatLastRefreshTime(lastRefresh))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .disabled(true)
+            }
         } else {
             Text("No API Key Configured")
                 .disabled(true)
