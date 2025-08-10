@@ -174,6 +174,8 @@ struct PullRequestMenuItem: View {
                                         }
                                     } label: {
                                         Text("\(jobStatusSymbol(job)) \(job.name)")
+                                    } primaryAction: {
+                                        openWorkflowJob(job)
                                     }
                                 } else {
                                     Button(action: {
@@ -185,6 +187,8 @@ struct PullRequestMenuItem: View {
                             }
                         } label: {
                             Text("\(checkRunStatusSymbol(checkRun)) \(checkRun.name)")
+                        } primaryAction: {
+                            openCheckRun(checkRun)
                         }
                     } else {
                         Button(action: {
@@ -196,6 +200,10 @@ struct PullRequestMenuItem: View {
                 }
             } label: {
                 Text(buildCompleteText())
+            } primaryAction: {
+                if let url = URL(string: pullRequest.htmlUrl) {
+                    NSWorkspace.shared.open(url)
+                }
             }
         } else {
             Button(action: {
