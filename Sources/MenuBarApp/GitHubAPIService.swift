@@ -53,11 +53,24 @@ struct GitHubPullRequest: Codable, Identifiable {
     }
     
     var repositoryName: String? {
-        // Extract repo name from repository_url
+        // Extract repo name from repository_url using robust regex parsing
         // Format: https://api.github.com/repos/owner/repo
-        if let url = URL(string: repositoryUrl),
-           url.pathComponents.count >= 4 {
-            return url.pathComponents[3]
+        let pattern = #"^https://api\.github\.com/repos/[^/]+/([^/]+)(?:/.*)?$"#
+        do {
+            let regex = try NSRegularExpression(pattern: pattern, options: [])
+            let range = NSRange(repositoryUrl.startIndex..<repositoryUrl.endIndex, in: repositoryUrl)
+            if let match = regex.firstMatch(in: repositoryUrl, options: [], range: range) {
+                let repoRange = Range(match.range(at: 1), in: repositoryUrl)
+                if let repoRange = repoRange {
+                    return String(repositoryUrl[repoRange])
+                }
+            }
+        } catch {
+            // Fallback to original URL parsing if regex fails
+            if let url = URL(string: repositoryUrl),
+               url.pathComponents.count >= 4 {
+                return url.pathComponents[3]
+            }
         }
         return nil
     }
@@ -263,11 +276,15 @@ class GitHubAPIService: ObservableObject {
             let searchResponse = try jsonDecoder.decode(SearchResponse.self, from: data)
             return searchResponse.items
         } catch {
-            // Log the actual response for debugging
+            // Log non-sensitive debugging information
+            #if DEBUG
+            print("GitHub API JSON decoding error: \(error)")
             if let responseString = String(data: data, encoding: .utf8) {
-                print("GitHub API Response: \(responseString)")
+                // Only log first 200 characters to avoid exposing sensitive data
+                let truncated = String(responseString.prefix(200))
+                print("Response preview: \(truncated)...")
             }
-            print("Decoding error: \(error)")
+            #endif
             throw error
         }
     }

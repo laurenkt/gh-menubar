@@ -1,5 +1,11 @@
 import SwiftUI
 
+// MARK: - UI Configuration Constants
+private enum UIConstants {
+    static let menuBarWidth: CGFloat = 320
+    static let scrollViewMaxHeight: CGFloat = 400
+}
+
 @main
 struct MenuBarApp: App {
     @StateObject private var appSettings = AppSettings.shared
@@ -59,7 +65,7 @@ struct MenuBarExtraView: View {
                             }
                         }
                     }
-                    .frame(maxHeight: 400)
+                    .frame(maxHeight: UIConstants.scrollViewMaxHeight)
                 }
             } else {
                 Label("No API Key Configured", systemImage: "exclamationmark.triangle")
@@ -85,7 +91,7 @@ struct MenuBarExtraView: View {
             }
             .keyboardShortcut("q")
         }
-        .frame(width: 320)
+        .frame(width: UIConstants.menuBarWidth)
         .padding(.vertical, 8)
     }
 }

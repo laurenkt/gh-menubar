@@ -1,6 +1,11 @@
 import SwiftUI
 import Combine
 
+// MARK: - Configuration Constants
+private enum ViewModelConstants {
+    static let autoRefreshInterval: TimeInterval = 300 // 5 minutes
+}
+
 @MainActor
 class PullRequestViewModel: ObservableObject {
     @Published var pullRequests: [GitHubPullRequest] = []
@@ -26,6 +31,7 @@ class PullRequestViewModel: ObservableObject {
         }
         
         isLoading = true
+        // Clear any previous error when attempting a new request
         errorMessage = nil
         
         do {
@@ -63,8 +69,9 @@ class PullRequestViewModel: ObservableObject {
             await fetchPullRequests()
         }
         
-        // Refresh every 5 minutes
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in
+        // Refresh at configured interval using weak self to prevent retain cycles
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: ViewModelConstants.autoRefreshInterval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
             Task { @MainActor in
                 await self.fetchPullRequests()
             }
