@@ -18,7 +18,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = MenuBarExtraView()
             .environmentObject(mockSettings)
         
-        assertSnapshot(matching: view, as: .image)
+        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
     }
     
     func testMenuBarExtraViewWithoutAPIKey() {
@@ -29,13 +29,13 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = MenuBarExtraView()
             .environmentObject(mockSettings)
         
-        assertSnapshot(matching: view, as: .image)
+        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
     }
     
     func testSettingsViewEmpty() {
         let view = SettingsView()
         
-        assertSnapshot(matching: view, as: .image)
+        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
     }
     
     func testTokenValidationResultViewLoading() {
@@ -45,7 +45,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = TokenValidationResultView()
             .environmentObject(mockGitHubService)
         
-        assertSnapshot(matching: view, as: .image)
+        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
     }
     
     func testTokenValidationResultViewValid() {
@@ -61,7 +61,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = TokenValidationResultView()
             .environmentObject(mockGitHubService)
         
-        assertSnapshot(matching: view, as: .image)
+        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
     }
     
     func testTokenValidationResultViewInvalid() {
@@ -77,6 +77,6 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = TokenValidationResultView()
             .environmentObject(mockGitHubService)
         
-        assertSnapshot(matching: view, as: .image)
+        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
     }
 }
