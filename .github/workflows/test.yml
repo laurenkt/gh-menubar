@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   test:
     runs-on: macos-latest
@@ -23,24 +28,12 @@ jobs:
           -derivedDataPath ./DerivedData
       continue-on-error: true
     
-    - name: Check if test results exist
-      run: |
-        echo "Checking for test results..."
-        ls -la ./
-        if [ -d "./TestResults.xcresult" ]; then
-          echo "TestResults.xcresult found"
-          ls -la ./TestResults.xcresult/
-        else
-          echo "TestResults.xcresult not found"
-          echo "Looking for any xcresult files:"
-          find . -name "*.xcresult" -type d
-        fi
-    
-    - name: Parse test results
-      uses: dorny/test-reporter@v1
+    - name: Publish test results
+      uses: kishikawakatsumi/xcresulttool@v1
       if: success() || failure()
       with:
-        name: 'Test Results'
-        path: './TestResults.xcresult'
-        reporter: 'swift-xunit'
-        fail-on-error: false
+        path: TestResults.xcresult
+        token: ${{ secrets.GITHUB_TOKEN }}
+        show-passed-tests: false
+        show-code-coverage: false
+        upload-bundles: never

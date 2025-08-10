@@ -1,6 +1,17 @@
 import SwiftUI
 import Combine
 
+struct QueryResult: Identifiable {
+    let id = UUID()
+    let query: QueryConfiguration
+    var pullRequests: [GitHubPullRequest]
+    
+    init(query: QueryConfiguration, pullRequests: [GitHubPullRequest] = []) {
+        self.query = query
+        self.pullRequests = pullRequests
+    }
+}
+
 // MARK: - Configuration Constants
 private enum ViewModelConstants {
     static let autoRefreshInterval: TimeInterval = 300 // 5 minutes
@@ -9,6 +20,7 @@ private enum ViewModelConstants {
 @MainActor
 class PullRequestViewModel: ObservableObject {
     @Published var pullRequests: [GitHubPullRequest] = []
+    @Published var queryResults: [QueryResult] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
@@ -31,56 +43,101 @@ class PullRequestViewModel: ObservableObject {
         }
         
         isLoading = true
-        // Clear any previous error when attempting a new request
         errorMessage = nil
         
+        let queries = appSettings.queries
+        guard !queries.isEmpty else {
+            errorMessage = "No search queries configured"
+            isLoading = false
+            return
+        }
+        
         do {
-            var prs = try await apiService.fetchOpenPullRequests(token: token)
+            var results: [QueryResult] = []
             
-            // Fetch check runs for each PR
-            await withTaskGroup(of: (Int, [GitHubCheckRun]?).self) { group in
-                for (index, pr) in prs.enumerated() {
-                    guard let repoName = pr.repositoryName,
-                          let repoOwner = extractOwnerFromRepositoryUrl(pr.repositoryUrl) else {
-                        continue
-                    }
-                    
+            // Fetch PRs for each query
+            await withTaskGroup(of: (QueryConfiguration, [GitHubPullRequest]?).self) { group in
+                for query in queries {
                     group.addTask {
                         do {
-                            // First get the PR details to get the head SHA
-                            let prDetails = try await self.apiService.fetchPullRequestDetails(
-                                owner: repoOwner,
-                                repo: repoName,
-                                number: pr.number,
-                                token: token
-                            )
-                            
-                            let checkRuns = try await self.apiService.fetchCheckRuns(
-                                for: repoOwner,
-                                repo: repoName,
-                                sha: prDetails.head.sha,
-                                token: token
-                            )
-                            return (index, checkRuns)
+                            let prs = try await self.apiService.searchPullRequests(query: query.query, token: token)
+                            return (query, prs)
                         } catch {
                             #if DEBUG
-                            print("Failed to fetch check runs for PR \(pr.number): \(error)")
+                            print("Failed to fetch PRs for query '\(query.title)': \(error)")
                             #endif
-                            return (index, nil)
+                            return (query, nil)
                         }
                     }
                 }
                 
-                for await (index, checkRuns) in group {
-                    if let checkRuns = checkRuns {
-                        prs[index].checkRuns = checkRuns
+                for await (query, prs) in group {
+                    let queryResult = QueryResult(
+                        query: query,
+                        pullRequests: prs ?? []
+                    )
+                    results.append(queryResult)
+                }
+            }
+            
+            // Fetch check runs for all PRs
+            for (resultIndex, queryResult) in results.enumerated() {
+                await withTaskGroup(of: (Int, [GitHubCheckRun]?).self) { group in
+                    for (prIndex, pr) in queryResult.pullRequests.enumerated() {
+                        guard let repoName = pr.repositoryName,
+                              let repoOwner = extractOwnerFromRepositoryUrl(pr.repositoryUrl) else {
+                            continue
+                        }
+                        
+                        group.addTask {
+                            do {
+                                let prDetails = try await self.apiService.fetchPullRequestDetails(
+                                    owner: repoOwner,
+                                    repo: repoName,
+                                    number: pr.number,
+                                    token: token
+                                )
+                                
+                                let checkRuns = try await self.apiService.fetchCheckRuns(
+                                    for: repoOwner,
+                                    repo: repoName,
+                                    sha: prDetails.head.sha,
+                                    token: token
+                                )
+                                return (prIndex, checkRuns)
+                            } catch {
+                                #if DEBUG
+                                print("Failed to fetch check runs for PR \(pr.number): \(error)")
+                                #endif
+                                return (prIndex, nil)
+                            }
+                        }
+                    }
+                    
+                    for await (prIndex, checkRuns) in group {
+                        if let checkRuns = checkRuns {
+                            results[resultIndex].pullRequests[prIndex].checkRuns = checkRuns
+                        }
                     }
                 }
             }
             
-            pullRequests = prs
+            // Sort results by query order from settings
+            let queryOrder = queries.map { $0.id }
+            results.sort { first, second in
+                let firstIndex = queryOrder.firstIndex(of: first.query.id) ?? Int.max
+                let secondIndex = queryOrder.firstIndex(of: second.query.id) ?? Int.max
+                return firstIndex < secondIndex
+            }
+            
+            queryResults = results
+            
+            // Keep the old pullRequests for backward compatibility (flatten all results)
+            pullRequests = results.flatMap { $0.pullRequests }
+            
             errorMessage = nil
         } catch {
+            queryResults = []
             pullRequests = []
             if let gitHubError = error as? GitHubAPIError {
                 errorMessage = gitHubError.userFriendlyDescription

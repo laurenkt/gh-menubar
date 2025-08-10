@@ -52,16 +52,52 @@ struct MenuBarExtraView: View {
                         .font(.caption)
                         .padding()
                         .frame(maxWidth: .infinity)
-                } else if viewModel.pullRequests.isEmpty && !viewModel.isLoading {
-                    Text("No open pull requests")
+                } else if viewModel.queryResults.isEmpty && !viewModel.isLoading {
+                    Text("No pull requests found")
                         .foregroundColor(.secondary)
                         .padding(.vertical, 20)
                         .frame(maxWidth: .infinity)
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(viewModel.pullRequests) { pr in
-                                PullRequestRow(pullRequest: pr)
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(viewModel.queryResults) { queryResult in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    if !queryResult.query.title.isEmpty {
+                                        HStack {
+                                            Text(queryResult.query.title)
+                                                .font(.caption)
+                                                .bold()
+                                                .foregroundColor(.secondary)
+                                            
+                                            Spacer()
+                                            
+                                            if !queryResult.pullRequests.isEmpty {
+                                                Text("\(queryResult.pullRequests.count)")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.secondary.opacity(0.2))
+                                                    .cornerRadius(8)
+                                            }
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.top, queryResult.query.id == viewModel.queryResults.first?.query.id ? 0 : 8)
+                                    }
+                                    
+                                    if queryResult.pullRequests.isEmpty {
+                                        Text("No PRs found for this query")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                            .italic()
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 4)
+                                    } else {
+                                        ForEach(queryResult.pullRequests) { pr in
+                                            PullRequestRow(pullRequest: pr)
+                                        }
+                                    }
+                                }
                             }
                         }
                         .padding(.vertical, 4)
