@@ -173,67 +173,50 @@ struct PullRequestMenuItem: View {
     }
     
     private func buildCompleteText() -> String {
-        var parts: [String] = []
-        var currentGroup: [String] = []
+        var result: [String] = []
         
         for component in queryConfig.componentOrder {
             switch component {
             case .statusSymbol:
-                if !currentGroup.isEmpty {
-                    parts.append(currentGroup.joined(separator: " "))
-                    currentGroup = []
-                }
-                parts.append(statusSymbol)
+                result.append(statusSymbol)
                 
             case .title:
-                if !currentGroup.isEmpty {
-                    parts.append(currentGroup.joined(separator: " "))
-                    currentGroup = []
-                }
-                parts.append(pullRequest.title)
+                result.append(pullRequest.title)
                 
             case .separator:
-                if !currentGroup.isEmpty {
-                    parts.append(currentGroup.joined(separator: " "))
-                    currentGroup = []
-                }
-                // Separator is handled by joining with " – "
+                result.append("–")
                 
             case .orgName:
                 if let orgName = pullRequest.repositoryOwner, !orgName.isEmpty {
-                    currentGroup.append(orgName)
+                    result.append(orgName)
                 }
                 
             case .projectName:
                 if let repoName = pullRequest.repositoryName, !repoName.isEmpty {
-                    currentGroup.append(repoName)
+                    result.append(repoName)
                 }
                 
             case .prNumber:
-                currentGroup.append("#\(pullRequest.number)")
+                result.append("#\(pullRequest.number)")
                 
             case .authorName:
                 if !pullRequest.user.login.isEmpty {
-                    currentGroup.append("@\(pullRequest.user.login)")
+                    result.append("@\(pullRequest.user.login)")
                 }
             }
         }
         
-        if !currentGroup.isEmpty {
-            parts.append(currentGroup.joined(separator: " "))
-        }
-        
-        let result = parts.joined(separator: " – ")
+        let finalResult = result.joined(separator: " ")
         
         #if DEBUG
         print("buildCompleteText for query '\(queryConfig.title)' with component order: \(queryConfig.componentOrder.map(\.rawValue))")
-        print("buildCompleteText result: '\(result)'")
+        print("buildCompleteText result: '\(finalResult)'")
         print("repositoryOwner: \(pullRequest.repositoryOwner ?? "nil")")
         print("repositoryName: \(pullRequest.repositoryName ?? "nil")")
         print("user.login: \(pullRequest.user.login)")
         #endif
         
-        return result
+        return finalResult
     }
     
     private func buildInfoText() -> String {

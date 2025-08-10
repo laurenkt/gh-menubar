@@ -74,13 +74,10 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
             let showPRNumber = try container.decodeIfPresent(Bool.self, forKey: .showPRNumber) ?? true
             let showAuthorName = try container.decodeIfPresent(Bool.self, forKey: .showAuthorName) ?? false
             
-            if showOrgName || showProjectName || showPRNumber || showAuthorName {
-                defaultOrder.append(.separator)
-                if showOrgName { defaultOrder.append(.orgName) }
-                if showProjectName { defaultOrder.append(.projectName) }
-                if showPRNumber { defaultOrder.append(.prNumber) }
-                if showAuthorName { defaultOrder.append(.authorName) }
-            }
+            if showOrgName { defaultOrder.append(.orgName) }
+            if showProjectName { defaultOrder.append(.projectName) }
+            if showPRNumber { defaultOrder.append(.prNumber) }
+            if showAuthorName { defaultOrder.append(.authorName) }
             componentOrder = defaultOrder
         }
         
@@ -117,13 +114,10 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
             self.componentOrder = order
         } else {
             var defaultOrder: [PRDisplayComponent] = [.statusSymbol, .title]
-            if showOrgName || showProjectName || showPRNumber || showAuthorName {
-                defaultOrder.append(.separator)
-                if showOrgName { defaultOrder.append(.orgName) }
-                if showProjectName { defaultOrder.append(.projectName) }
-                if showPRNumber { defaultOrder.append(.prNumber) }
-                if showAuthorName { defaultOrder.append(.authorName) }
-            }
+            if showOrgName { defaultOrder.append(.orgName) }
+            if showProjectName { defaultOrder.append(.projectName) }
+            if showPRNumber { defaultOrder.append(.prNumber) }
+            if showAuthorName { defaultOrder.append(.authorName) }
             self.componentOrder = defaultOrder
         }
         
