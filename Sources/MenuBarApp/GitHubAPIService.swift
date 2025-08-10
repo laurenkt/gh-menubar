@@ -327,7 +327,7 @@ class GitHubAPIService: ObservableObject {
         }
     }
     
-    private func fetchUser(token: String) async throws -> GitHubUser {
+    func fetchUser(token: String) async throws -> GitHubUser {
         guard let url = URL(string: "\(baseURL)/user") else {
             throw GitHubAPIError.invalidURL
         }

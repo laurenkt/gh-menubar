@@ -11,12 +11,20 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         // isRecording is deprecated - record mode should be set via environment variable
     }
     
+    override class func setUp() {
+        super.setUp()
+        // Record new snapshots if needed - comment out after recording
+        // SnapshotTesting.isRecording = true
+    }
+    
+    @MainActor
     func testMenuBarExtraViewWithAPIKey() {
         // Mock the app settings to have an API key
         let mockSettings = AppSettings.shared
         mockSettings.hasAPIKeyForTesting = true
         
-        let view = MenuBarExtraView()
+        let viewModel = PullRequestViewModel()
+        let view = MenuBarExtraView(viewModel: viewModel)
             .environmentObject(mockSettings)
             .frame(width: 300, height: 200)
         
@@ -24,15 +32,17 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(x: 0, y: 0, width: 300, height: 200)
         
-        assertSnapshot(matching: hostingView, as: .image)
+        assertSnapshot(of: hostingView, as: .image)
     }
     
+    @MainActor
     func testMenuBarExtraViewWithoutAPIKey() {
         // Mock the app settings to not have an API key
         let mockSettings = AppSettings.shared
         mockSettings.hasAPIKeyForTesting = false
         
-        let view = MenuBarExtraView()
+        let viewModel = PullRequestViewModel()
+        let view = MenuBarExtraView(viewModel: viewModel)
             .environmentObject(mockSettings)
             .frame(width: 300, height: 200)
         
@@ -40,7 +50,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(x: 0, y: 0, width: 300, height: 200)
         
-        assertSnapshot(matching: hostingView, as: .image)
+        assertSnapshot(of: hostingView, as: .image)
     }
     
     func testSettingsViewEmpty() {
@@ -51,7 +61,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(x: 0, y: 0, width: 500, height: 400)
         
-        assertSnapshot(matching: hostingView, as: .image)
+        assertSnapshot(of: hostingView, as: .image)
     }
     
     func testTokenValidationResultViewLoading() {
@@ -66,7 +76,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(x: 0, y: 0, width: 300, height: 100)
         
-        assertSnapshot(matching: hostingView, as: .image)
+        assertSnapshot(of: hostingView, as: .image)
     }
     
     func testTokenValidationResultViewValid() {
@@ -87,7 +97,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 300)
         
-        assertSnapshot(matching: hostingView, as: .image)
+        assertSnapshot(of: hostingView, as: .image)
     }
     
     func testTokenValidationResultViewInvalid() {
@@ -108,6 +118,6 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(x: 0, y: 0, width: 300, height: 150)
         
-        assertSnapshot(matching: hostingView, as: .image)
+        assertSnapshot(of: hostingView, as: .image)
     }
 }

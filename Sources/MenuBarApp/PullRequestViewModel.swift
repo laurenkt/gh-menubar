@@ -23,10 +23,32 @@ class PullRequestViewModel: ObservableObject {
     @Published var queryResults: [QueryResult] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var currentUserLogin: String?
     
     private let apiService = GitHubAPIService.shared
     private let appSettings = AppSettings.shared
     private var refreshTimer: Timer?
+    
+    var pendingActionsCount: Int {
+        guard let userLogin = currentUserLogin else { return 0 }
+        
+        var count = 0
+        
+        for queryResult in queryResults {
+            for pr in queryResult.pullRequests {
+                // Count PRs where user's review is requested
+                if queryResult.query.query.contains("review-requested:@me") {
+                    count += 1
+                }
+                // Count PRs authored by user with failing checks
+                else if pr.user.login == userLogin && pr.hasFailingChecks {
+                    count += 1
+                }
+            }
+        }
+        
+        return count
+    }
     
     init() {
         startAutoRefresh()
@@ -53,6 +75,10 @@ class PullRequestViewModel: ObservableObject {
         }
         
         do {
+            // Fetch current user info first
+            let user = try await apiService.fetchUser(token: token)
+            currentUserLogin = user.login
+            
             var results: [QueryResult] = []
             
             // Fetch PRs for each query
