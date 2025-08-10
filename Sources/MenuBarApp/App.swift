@@ -129,7 +129,7 @@ struct PullRequestRow: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         
-                        CheckStatusIndicator(status: pullRequest.checkStatus)
+                        CheckStatusMenu(pullRequest: pullRequest)
                     }
                     
                     if let repoName = pullRequest.repositoryName {
@@ -207,6 +207,81 @@ struct CheckStatusIndicator: View {
             return "⏳"
         case .unknown:
             return ""
+        }
+    }
+}
+
+struct CheckStatusMenu: View {
+    let pullRequest: GitHubPullRequest
+    
+    var body: some View {
+        if !pullRequest.checkRuns.isEmpty {
+            Menu {
+                ForEach(pullRequest.checkRuns) { checkRun in
+                    Button(action: {
+                        openCheckRun(checkRun)
+                    }) {
+                        HStack {
+                            Text(checkRun.name)
+                            Spacer()
+                            CheckRunStatusIcon(checkRun: checkRun)
+                        }
+                    }
+                }
+            } label: {
+                CheckStatusIndicator(status: pullRequest.checkStatus)
+            }
+            .menuStyle(.borderlessButton)
+        } else {
+            CheckStatusIndicator(status: pullRequest.checkStatus)
+        }
+    }
+    
+    private func openCheckRun(_ checkRun: GitHubCheckRun) {
+        if let htmlUrl = checkRun.htmlUrl, let url = URL(string: htmlUrl) {
+            NSWorkspace.shared.open(url)
+        } else if let detailsUrl = checkRun.detailsUrl, let url = URL(string: detailsUrl) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+}
+
+struct CheckRunStatusIcon: View {
+    let checkRun: GitHubCheckRun
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 6, height: 6)
+            
+            Text(statusText)
+                .font(.caption2)
+                .foregroundColor(statusColor)
+        }
+    }
+    
+    private var statusColor: Color {
+        if checkRun.isSuccessful {
+            return .green
+        } else if checkRun.isFailed {
+            return .red
+        } else if checkRun.isInProgress {
+            return .orange
+        } else {
+            return .secondary
+        }
+    }
+    
+    private var statusText: String {
+        if checkRun.isSuccessful {
+            return "✓"
+        } else if checkRun.isFailed {
+            return "✗"
+        } else if checkRun.isInProgress {
+            return "⏳"
+        } else {
+            return "?"
         }
     }
 }

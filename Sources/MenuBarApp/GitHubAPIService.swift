@@ -152,12 +152,16 @@ struct GitHubCheckRun: Codable, Identifiable {
     let startedAt: Date?
     let completedAt: Date?
     let output: CheckRunOutput?
+    let htmlUrl: String?
+    let detailsUrl: String?
     
     enum CodingKeys: String, CodingKey {
         case id, status, conclusion, name, output
         case headSha = "head_sha"
         case startedAt = "started_at"
         case completedAt = "completed_at"
+        case htmlUrl = "html_url"
+        case detailsUrl = "details_url"
     }
     
     var isComplete: Bool {
