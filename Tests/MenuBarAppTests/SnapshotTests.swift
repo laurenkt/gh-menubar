@@ -7,7 +7,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
     override func setUp() {
         super.setUp()
         // Use a consistent device for snapshot testing
-        isRecording = false
+        // isRecording is deprecated - record mode should be set via environment variable
     }
     
     func testMenuBarExtraViewWithAPIKey() {
@@ -18,7 +18,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = MenuBarExtraView()
             .environmentObject(mockSettings)
         
-        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
+        assertSnapshot(matching: view, as: .image)
     }
     
     func testMenuBarExtraViewWithoutAPIKey() {
@@ -29,13 +29,13 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = MenuBarExtraView()
             .environmentObject(mockSettings)
         
-        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
+        assertSnapshot(matching: view, as: .image)
     }
     
     func testSettingsViewEmpty() {
         let view = SettingsView()
         
-        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
+        assertSnapshot(matching: view, as: .image)
     }
     
     func testTokenValidationResultViewLoading() {
@@ -45,7 +45,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = TokenValidationResultView()
             .environmentObject(mockGitHubService)
         
-        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
+        assertSnapshot(matching: view, as: .image)
     }
     
     func testTokenValidationResultViewValid() {
@@ -61,7 +61,7 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = TokenValidationResultView()
             .environmentObject(mockGitHubService)
         
-        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
+        assertSnapshot(matching: view, as: .image)
     }
     
     func testTokenValidationResultViewInvalid() {
@@ -77,6 +77,6 @@ final class MenuBarAppSnapshotTests: XCTestCase {
         let view = TokenValidationResultView()
             .environmentObject(mockGitHubService)
         
-        assertSnapshot(matching: view, as: .image(layout: .sizeThatFits))
+        assertSnapshot(matching: view, as: .image)
     }
 }
