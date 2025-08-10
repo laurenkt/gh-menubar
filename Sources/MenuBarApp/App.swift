@@ -16,7 +16,7 @@ struct MenuBarApp: App {
             MenuBarExtraView(viewModel: viewModel)
         } label: {
             if viewModel.pendingActionsCount > 0 {
-                Text("\(viewModel.pendingActionsCount) Pending")
+                Text("\(viewModel.pendingActionsCount) PRs")
                     .font(.system(size: 12, weight: .medium))
             } else {
                 Image(systemName: "arrow.triangle.pull")
