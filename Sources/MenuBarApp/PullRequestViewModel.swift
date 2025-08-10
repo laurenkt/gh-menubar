@@ -42,9 +42,9 @@ class PullRequestViewModel: ObservableObject {
                    queryResult.query.includeInPendingReviewsCount {
                     count += 1
                 }
-                // Count PRs authored by user with failing checks (only if query allows it)
+                // Count PRs authored by user with failing checks or branch conflicts (only if query allows it)
                 else if pr.user.login == userLogin && 
-                        pr.hasFailingChecks && 
+                        (pr.hasFailingChecks || pr.hasBranchConflicts) && 
                         queryResult.query.includeInFailingChecksCount {
                     count += 1
                 }
@@ -123,7 +123,7 @@ class PullRequestViewModel: ObservableObject {
             
             // Fetch check runs for all PRs
             for (resultIndex, queryResult) in results.enumerated() {
-                await withTaskGroup(of: (Int, [GitHubCheckRun]?).self) { group in
+                await withTaskGroup(of: (Int, [GitHubCheckRun]?, GitHubPullRequestDetails?).self) { group in
                     for (prIndex, pr) in queryResult.pullRequests.enumerated() {
                         guard let repoName = pr.repositoryName,
                               let repoOwner = extractOwnerFromRepositoryUrl(pr.repositoryUrl) else {
@@ -145,19 +145,23 @@ class PullRequestViewModel: ObservableObject {
                                     sha: prDetails.head.sha,
                                     token: token
                                 )
-                                return (prIndex, checkRuns)
+                                return (prIndex, checkRuns, prDetails)
                             } catch {
                                 #if DEBUG
                                 print("Failed to fetch check runs for PR \(pr.number): \(error)")
                                 #endif
-                                return (prIndex, nil)
+                                return (prIndex, nil, nil)
                             }
                         }
                     }
                     
-                    for await (prIndex, checkRuns) in group {
+                    for await (prIndex, checkRuns, prDetails) in group {
                         if let checkRuns = checkRuns {
                             results[resultIndex].pullRequests[prIndex].checkRuns = checkRuns
+                        }
+                        if let prDetails = prDetails {
+                            results[resultIndex].pullRequests[prIndex].mergeable = prDetails.mergeable
+                            results[resultIndex].pullRequests[prIndex].mergeableState = prDetails.mergeableState
                         }
                     }
                 }
