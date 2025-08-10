@@ -33,7 +33,7 @@ struct MenuBarExtraView: View {
                     .foregroundColor(.orange)
                     .padding(.vertical, 8)
                 
-                Text("Please configure your GitHub API key in Preferences")
+                Text("Please configure your GitHub API key in Settings")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -42,7 +42,7 @@ struct MenuBarExtraView: View {
             
             Divider()
             
-            Button("Preferences...") {
+            Button("Settings...") {
                 appSettings.openSettings()
             }
             .keyboardShortcut(",", modifiers: .command)

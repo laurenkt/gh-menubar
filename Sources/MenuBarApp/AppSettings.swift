@@ -56,11 +56,11 @@ class AppSettings: ObservableObject {
             let hostingController = NSHostingController(rootView: settingsView)
             
             settingsWindow = NSWindow(contentViewController: hostingController)
-            settingsWindow?.title = "Preferences"
+            settingsWindow?.title = "Settings"
             settingsWindow?.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             settingsWindow?.isReleasedWhenClosed = false
             settingsWindow?.center()
-            settingsWindow?.setFrameAutosaveName("PreferencesWindow")
+            settingsWindow?.setFrameAutosaveName("SettingsWindow")
             
             // Set delegate to handle window closing
             settingsWindow?.delegate = WindowDelegate.shared
