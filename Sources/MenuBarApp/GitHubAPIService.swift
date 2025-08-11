@@ -135,6 +135,19 @@ struct GitHubPullRequest: Codable, Identifiable {
         return hasChecks && checkRunsSuccess && statusesSuccess
     }
     
+    var isReadyToMerge: Bool {
+        // A PR is ready to merge when:
+        // 1. It's not a draft
+        // 2. It's mergeable (no conflicts)
+        // 3. Either has no checks OR all checks have passed
+        let checksOk = checkRuns.isEmpty || allChecksSuccessful
+        let ready = !draft && checksOk && mergeable == true
+        #if DEBUG
+        print("PR #\(number): isReadyToMerge=\(ready), draft=\(draft), checksOk=\(checksOk), checkRuns.count=\(checkRuns.count), mergeable=\(mergeable?.description ?? "nil")")
+        #endif
+        return ready
+    }
+    
     var checkStatus: CheckStatus {
         // Branch conflicts take precedence over check status
         if hasBranchConflicts {
