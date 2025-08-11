@@ -106,6 +106,11 @@ struct PullRequestMenuItem: View {
     let queryConfig: QueryConfiguration
     
     private var statusSymbol: String {
+        // Check if PR needs review first
+        if pullRequest.needsReview {
+            return "👀"
+        }
+        
         switch pullRequest.checkStatus {
         case .success:
             return "✅"
