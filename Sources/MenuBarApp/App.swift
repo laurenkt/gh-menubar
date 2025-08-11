@@ -106,6 +106,15 @@ struct PullRequestMenuItem: View {
     let queryConfig: QueryConfiguration
     
     private var statusSymbol: String {
+        // Always show green check for PRs ready to merge
+        if pullRequest.isReadyToMerge {
+            return "✅"
+        }
+        
+        #if DEBUG
+        print("PR #\(pullRequest.number) '\(pullRequest.title)': checkStatus=\(pullRequest.checkStatus), statusSymbol will be...")
+        #endif
+        
         switch pullRequest.checkStatus {
         case .success:
             return "✅"
