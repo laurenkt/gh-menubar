@@ -121,9 +121,9 @@ class PullRequestViewModel: ObservableObject {
                 }
             }
             
-            // Fetch check runs for all PRs
+            // Fetch check runs and statuses for all PRs
             for (resultIndex, queryResult) in results.enumerated() {
-                await withTaskGroup(of: (Int, [GitHubCheckRun]?, GitHubPullRequestDetails?).self) { group in
+                await withTaskGroup(of: (Int, [GitHubCheckRun]?, [GitHubCommitStatus]?, GitHubPullRequestDetails?).self) { group in
                     for (prIndex, pr) in queryResult.pullRequests.enumerated() {
                         guard let repoName = pr.repositoryName,
                               let repoOwner = extractOwnerFromRepositoryUrl(pr.repositoryUrl) else {
@@ -139,25 +139,40 @@ class PullRequestViewModel: ObservableObject {
                                     token: token
                                 )
                                 
-                                let checkRuns = try await self.apiService.fetchCheckRuns(
+                                // Fetch both check runs and commit statuses concurrently
+                                async let checkRuns = try self.apiService.fetchCheckRuns(
                                     for: repoOwner,
                                     repo: repoName,
                                     sha: prDetails.head.sha,
                                     token: token
                                 )
-                                return (prIndex, checkRuns, prDetails)
+                                
+                                async let commitStatuses = try self.apiService.fetchCommitStatuses(
+                                    for: repoOwner,
+                                    repo: repoName,
+                                    sha: prDetails.head.sha,
+                                    token: token
+                                )
+                                
+                                let checkRunsResult = try await checkRuns
+                                let statusesResult = try await commitStatuses
+                                
+                                return (prIndex, checkRunsResult, statusesResult, prDetails)
                             } catch {
                                 #if DEBUG
-                                print("Failed to fetch check runs for PR \(pr.number): \(error)")
+                                print("Failed to fetch checks for PR \(pr.number): \(error)")
                                 #endif
-                                return (prIndex, nil, nil)
+                                return (prIndex, nil, nil, nil)
                             }
                         }
                     }
                     
-                    for await (prIndex, checkRuns, prDetails) in group {
+                    for await (prIndex, checkRuns, commitStatuses, prDetails) in group {
                         if let checkRuns = checkRuns {
                             results[resultIndex].pullRequests[prIndex].checkRuns = checkRuns
+                        }
+                        if let commitStatuses = commitStatuses {
+                            results[resultIndex].pullRequests[prIndex].commitStatuses = commitStatuses
                         }
                         if let prDetails = prDetails {
                             results[resultIndex].pullRequests[prIndex].mergeable = prDetails.mergeable
