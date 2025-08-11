@@ -554,7 +554,7 @@ struct QueryEditSheet: View {
                 
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle("Include in failing PR checks count", isOn: $includeInFailingChecksCount)
-                    Toggle("Include in PR count", isOn: $includeInPendingReviewsCount)
+                    Toggle("Include PRs pending review in count", isOn: $includeInPendingReviewsCount)
                 }
                 
                 Text("Controls whether PRs from this query contribute to the menu bar notification count")

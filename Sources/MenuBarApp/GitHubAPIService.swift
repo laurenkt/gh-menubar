@@ -53,9 +53,11 @@ struct GitHubPullRequest: Codable, Identifiable {
     var mergeableState: String?
     var checkRuns: [GitHubCheckRun] = []
     var commitStatuses: [GitHubCommitStatus] = []
+    var requestedReviewers: [GitHubUser]?
+    var assignees: [GitHubUser]?
     
     enum CodingKeys: String, CodingKey {
-        case id, number, title, state, draft, user, mergeable
+        case id, number, title, state, draft, user, mergeable, assignees
         case htmlUrl = "html_url"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -63,6 +65,7 @@ struct GitHubPullRequest: Codable, Identifiable {
         case repositoryUrl = "repository_url"
         case headSha = "head_sha"
         case mergeableState = "mergeable_state"
+        case requestedReviewers = "requested_reviewers"
     }
     
     var repositoryName: String? {
@@ -166,6 +169,18 @@ struct GitHubPullRequest: Codable, Identifiable {
             return .success
         }
         return .unknown
+    }
+    
+    var needsReview: Bool {
+        // A PR needs review if it has requested reviewers and is assigned to someone
+        // This indicates someone is assigned to review it but hasn't reviewed yet
+        if let requestedReviewers = requestedReviewers,
+           !requestedReviewers.isEmpty,
+           let assignees = assignees,
+           !assignees.isEmpty {
+            return true
+        }
+        return false
     }
 }
 
@@ -447,14 +462,17 @@ struct GitHubPullRequestDetails: Codable {
     let head: PRHead
     let mergeable: Bool?
     let mergeableState: String?
+    let requestedReviewers: [GitHubUser]?
+    let assignees: [GitHubUser]?
     
     struct PRHead: Codable {
         let sha: String
     }
     
     enum CodingKeys: String, CodingKey {
-        case head, mergeable
+        case head, mergeable, assignees
         case mergeableState = "mergeable_state"
+        case requestedReviewers = "requested_reviewers"
     }
 }
 

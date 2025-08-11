@@ -37,9 +37,8 @@ class PullRequestViewModel: ObservableObject {
         
         for queryResult in queryResults {
             for pr in queryResult.pullRequests {
-                // Count PRs where user's review is requested (only if query allows it)
-                if queryResult.query.query.contains("review-requested:@me") && 
-                   queryResult.query.includeInPendingReviewsCount {
+                // Count PRs that need review (only if query allows it)
+                if pr.needsReview && queryResult.query.includeInPendingReviewsCount {
                     count += 1
                 }
                 // Count PRs authored by user with failing checks or branch conflicts (only if query allows it)
@@ -177,6 +176,8 @@ class PullRequestViewModel: ObservableObject {
                         if let prDetails = prDetails {
                             results[resultIndex].pullRequests[prIndex].mergeable = prDetails.mergeable
                             results[resultIndex].pullRequests[prIndex].mergeableState = prDetails.mergeableState
+                            results[resultIndex].pullRequests[prIndex].requestedReviewers = prDetails.requestedReviewers
+                            results[resultIndex].pullRequests[prIndex].assignees = prDetails.assignees
                         }
                     }
                 }
