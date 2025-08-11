@@ -368,8 +368,13 @@ struct QueriesSettingsView: View {
                     ForEach(Array(appSettings.queries.enumerated()), id: \.element.id) { index, query in
                         QueryRowView(
                             query: query,
+                            index: index,
+                            totalQueries: appSettings.queries.count,
                             onEdit: { editingQuery = query },
-                            onDelete: { appSettings.removeQuery(at: index) }
+                            onDelete: { appSettings.removeQuery(at: index) },
+                            onDuplicate: { appSettings.duplicateQuery(at: index) },
+                            onMoveUp: { appSettings.moveQueryUp(at: index) },
+                            onMoveDown: { appSettings.moveQueryDown(at: index) }
                         )
                     }
                     
@@ -402,8 +407,13 @@ struct QueriesSettingsView: View {
 
 struct QueryRowView: View {
     let query: QueryConfiguration
+    let index: Int
+    let totalQueries: Int
     let onEdit: () -> Void
     let onDelete: () -> Void
+    let onDuplicate: () -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
     
     var body: some View {
         HStack {
@@ -419,7 +429,33 @@ struct QueryRowView: View {
             
             Spacer()
             
-            HStack(spacing: 8) {
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Button(action: onMoveUp) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(index == 0)
+                    .opacity(index == 0 ? 0.3 : 1.0)
+                    
+                    Button(action: onMoveDown) {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(index == totalQueries - 1)
+                    .opacity(index == totalQueries - 1 ? 0.3 : 1.0)
+                }
+                
+                Button(action: onDuplicate) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.blue)
+                .help("Duplicate query")
+                
                 Button("Edit") { onEdit() }
                     .buttonStyle(.plain)
                     .foregroundColor(.blue)

@@ -52,6 +52,7 @@ struct GitHubPullRequest: Codable, Identifiable {
     var mergeable: Bool?
     var mergeableState: String?
     var checkRuns: [GitHubCheckRun] = []
+    var commitStatuses: [GitHubCommitStatus] = []
     var requestedReviewers: [GitHubUser]?
     var assignees: [GitHubUser]?
     
@@ -123,15 +124,31 @@ struct GitHubPullRequest: Codable, Identifiable {
     }
     
     var hasFailingChecks: Bool {
-        checkRuns.contains { $0.isFailed }
+        checkRuns.contains { $0.isFailed } || commitStatuses.contains { $0.isFailure }
     }
     
     var hasInProgressChecks: Bool {
-        checkRuns.contains { $0.isInProgress }
+        checkRuns.contains { $0.isInProgress } || commitStatuses.contains { $0.isPending }
     }
     
     var allChecksSuccessful: Bool {
-        !checkRuns.isEmpty && checkRuns.allSatisfy { $0.isSuccessful }
+        let hasChecks = !checkRuns.isEmpty || !commitStatuses.isEmpty
+        let checkRunsSuccess = checkRuns.isEmpty || checkRuns.allSatisfy { $0.isSuccessful }
+        let statusesSuccess = commitStatuses.isEmpty || commitStatuses.allSatisfy { $0.isSuccess }
+        return hasChecks && checkRunsSuccess && statusesSuccess
+    }
+    
+    var isReadyToMerge: Bool {
+        // A PR is ready to merge when:
+        // 1. It's not a draft
+        // 2. It's mergeable (no conflicts)
+        // 3. Either has no checks OR all checks have passed
+        let checksOk = checkRuns.isEmpty || allChecksSuccessful
+        let ready = !draft && checksOk && mergeable == true
+        #if DEBUG
+        print("PR #\(number): isReadyToMerge=\(ready), draft=\(draft), checksOk=\(checksOk), checkRuns.count=\(checkRuns.count), mergeable=\(mergeable?.description ?? "nil")")
+        #endif
+        return ready
     }
     
     var checkStatus: CheckStatus {
@@ -139,7 +156,7 @@ struct GitHubPullRequest: Codable, Identifiable {
         if hasBranchConflicts {
             return .failed
         }
-        if checkRuns.isEmpty {
+        if checkRuns.isEmpty && commitStatuses.isEmpty {
             return .unknown
         }
         if hasFailingChecks {
@@ -368,6 +385,66 @@ struct GitHubCheckRunsResponse: Codable {
     
     enum CodingKeys: String, CodingKey {
         case checkRuns = "check_runs"
+    }
+}
+
+struct GitHubCommitStatus: Codable, Identifiable {
+    let id: Int
+    let state: String
+    let description: String?
+    let targetUrl: String?
+    let context: String
+    let createdAt: Date
+    let updatedAt: Date
+    let creator: GitHubUser?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, state, description, context, creator
+        case targetUrl = "target_url"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+    
+    var isSuccess: Bool {
+        state == "success"
+    }
+    
+    var isFailure: Bool {
+        state == "failure" || state == "error"
+    }
+    
+    var isPending: Bool {
+        state == "pending"
+    }
+    
+    var displayName: String {
+        // Extract a cleaner name from context (e.g., "ci/circleci: build" -> "CircleCI: build")
+        if context.contains("circleci") {
+            return context.replacingOccurrences(of: "ci/circleci:", with: "CircleCI:")
+                          .replacingOccurrences(of: "ci/circleci/", with: "CircleCI/")
+        } else if context.contains("travis") {
+            return context.replacingOccurrences(of: "continuous-integration/travis-ci/", with: "Travis CI/")
+        } else if context.contains("jenkins") {
+            return context.replacingOccurrences(of: "continuous-integration/jenkins/", with: "Jenkins/")
+        } else if context.contains("buildkite") {
+            return context.replacingOccurrences(of: "buildkite/", with: "Buildkite/")
+        } else if context.contains("appveyor") {
+            return context.replacingOccurrences(of: "continuous-integration/appveyor/", with: "AppVeyor/")
+        }
+        return context
+    }
+}
+
+struct GitHubCombinedStatus: Codable {
+    let state: String
+    let statuses: [GitHubCommitStatus]
+    let sha: String
+    let totalCount: Int
+    let repository: GitHubRepository
+    
+    enum CodingKeys: String, CodingKey {
+        case state, statuses, sha, repository
+        case totalCount = "total_count"
     }
 }
 
@@ -606,6 +683,39 @@ class GitHubAPIService: ObservableObject {
         } catch {
             #if DEBUG
             print("Check runs JSON decoding error: \(error)")
+            if let responseString = String(data: data, encoding: .utf8) {
+                let truncated = String(responseString.prefix(200))
+                print("Response preview: \(truncated)...")
+            }
+            #endif
+            throw error
+        }
+    }
+    
+    func fetchCommitStatuses(for owner: String, repo: String, sha: String, token: String) async throws -> [GitHubCommitStatus] {
+        guard let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/commits/\(sha)/status") else {
+            throw GitHubAPIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        
+        let (data, response) = try await urlSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
+        }
+        
+        try handleAPIResponse(httpResponse)
+        
+        do {
+            let combinedStatus = try jsonDecoder.decode(GitHubCombinedStatus.self, from: data)
+            return combinedStatus.statuses
+        } catch {
+            #if DEBUG
+            print("Commit statuses JSON decoding error: \(error)")
             if let responseString = String(data: data, encoding: .utf8) {
                 let truncated = String(responseString.prefix(200))
                 print("Response preview: \(truncated)...")

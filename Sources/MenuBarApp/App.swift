@@ -111,6 +111,15 @@ struct PullRequestMenuItem: View {
             return "👀"
         }
         
+        // Always show green check for PRs ready to merge
+        if pullRequest.isReadyToMerge {
+            return "✅"
+        }
+        
+        #if DEBUG
+        print("PR #\(pullRequest.number) '\(pullRequest.title)': checkStatus=\(pullRequest.checkStatus), statusSymbol will be...")
+        #endif
+        
         switch pullRequest.checkStatus {
         case .success:
             return "✅"
@@ -124,7 +133,7 @@ struct PullRequestMenuItem: View {
     }
     
     var body: some View {
-        if !pullRequest.checkRuns.isEmpty || pullRequest.hasBranchConflicts {
+        if !pullRequest.checkRuns.isEmpty || !pullRequest.commitStatuses.isEmpty || pullRequest.hasBranchConflicts {
             Menu {
                 Button(action: {
                     if let url = URL(string: pullRequest.htmlUrl) {
@@ -141,9 +150,25 @@ struct PullRequestMenuItem: View {
                     Text("❌ Branch conflicts prevent checks from running")
                         .disabled(true)
                     
-                    if !pullRequest.checkRuns.isEmpty {
+                    if !pullRequest.checkRuns.isEmpty || !pullRequest.commitStatuses.isEmpty {
                         Divider()
                     }
+                }
+                
+                // Show commit statuses from third-party CI providers
+                ForEach(pullRequest.commitStatuses) { status in
+                    Button(action: {
+                        if let targetUrl = status.targetUrl, let url = URL(string: targetUrl) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }) {
+                        Text("\(commitStatusSymbol(status)) \(status.displayName)")
+                    }
+                    .disabled(status.targetUrl == nil)
+                }
+                
+                if !pullRequest.commitStatuses.isEmpty && !pullRequest.checkRuns.isEmpty {
+                    Divider()
                 }
                 
                 ForEach(pullRequest.checkRuns) { checkRun in
@@ -265,6 +290,18 @@ struct PullRequestMenuItem: View {
         } else if step.isFailed {
             return "❌"
         } else if step.isInProgress {
+            return "⏳"
+        } else {
+            return "?"
+        }
+    }
+    
+    private func commitStatusSymbol(_ status: GitHubCommitStatus) -> String {
+        if status.isSuccess {
+            return "✅"
+        } else if status.isFailure {
+            return "❌"
+        } else if status.isPending {
             return "⏳"
         } else {
             return "?"
