@@ -309,6 +309,44 @@ class AppSettings: ObservableObject {
         saveQueries()
     }
     
+    func duplicateQuery(at index: Int) {
+        guard index >= 0 && index < queries.count else { return }
+        let originalQuery = queries[index]
+        let duplicatedQuery = QueryConfiguration(
+            title: "\(originalQuery.title) (Copy)",
+            query: originalQuery.query,
+            componentOrder: originalQuery.componentOrder,
+            showOrgName: originalQuery.showOrgName,
+            showProjectName: originalQuery.showProjectName,
+            showPRNumber: originalQuery.showPRNumber,
+            showAuthorName: originalQuery.showAuthorName,
+            includeInFailingChecksCount: originalQuery.includeInFailingChecksCount,
+            includeInPendingReviewsCount: originalQuery.includeInPendingReviewsCount
+        )
+        queries.insert(duplicatedQuery, at: index + 1)
+        saveQueries()
+    }
+    
+    func moveQuery(from sourceIndex: Int, to destinationIndex: Int) {
+        guard sourceIndex >= 0 && sourceIndex < queries.count else { return }
+        guard destinationIndex >= 0 && destinationIndex < queries.count else { return }
+        guard sourceIndex != destinationIndex else { return }
+        
+        let query = queries.remove(at: sourceIndex)
+        queries.insert(query, at: destinationIndex)
+        saveQueries()
+    }
+    
+    func moveQueryUp(at index: Int) {
+        guard index > 0 && index < queries.count else { return }
+        moveQuery(from: index, to: index - 1)
+    }
+    
+    func moveQueryDown(at index: Int) {
+        guard index >= 0 && index < queries.count - 1 else { return }
+        moveQuery(from: index, to: index + 1)
+    }
+    
     func loadRefreshInterval() {
         let stored = UserDefaults.standard.double(forKey: refreshIntervalKey)
         if stored > 0 {
