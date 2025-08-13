@@ -725,9 +725,6 @@ struct TokenTextField: View {
         }
         
         availableComponents = PRDisplayComponent.allCases.filter { component in
-            // Exclude separator since users can type separators directly
-            guard component != .separator else { return false }
-            
             // Other components can only be added if not already in use
             return !usedComponents.contains(component)
         }
