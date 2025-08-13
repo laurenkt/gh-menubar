@@ -1,0 +1,112 @@
+# GitHub GraphQL Queries for MenuBarApp
+# These queries are embedded in the Swift code but kept here for reference
+
+# Main query used in GitHubGraphQLService.searchPullRequests()
+# Fetches pull requests with all associated data in a single request
+query PullRequestSearch($searchQuery: String!) {
+  search(query: $searchQuery, type: ISSUE, first: 50) {
+    nodes {
+      ... on PullRequest {
+        id
+        number
+        title
+        url
+        state
+        isDraft
+        createdAt
+        updatedAt
+        mergeable
+        mergeStateStatus
+        headRefOid
+        
+        author {
+          login
+          ... on User { id }
+        }
+        
+        repository {
+          name
+          owner { login }
+        }
+        
+        reviewRequests(first: 10) {
+          nodes {
+            requestedReviewer {
+              ... on User { login id }
+              ... on Team { name id }
+            }
+          }
+        }
+        
+        assignees(first: 10) {
+          nodes { login id }
+        }
+        
+        commits(last: 1) {
+          nodes {
+            commit {
+              checkSuites(first: 10) {
+                nodes {
+                  checkRuns(first: 100) {
+                    nodes {
+                      id
+                      name
+                      status
+                      conclusion
+                      startedAt
+                      completedAt
+                      detailsUrl
+                      checkSuite {
+                        app { slug }
+                        workflowRun { databaseId }
+                      }
+                    }
+                  }
+                }
+              }
+              status {
+                contexts {
+                  id
+                  state
+                  description
+                  targetUrl
+                  context
+                  createdAt
+                  creator {
+                    login
+                    ... on User { id }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Token validation query used in GitHubGraphQLService.validateToken()
+query TokenValidation {
+  viewer {
+    login
+    id
+    repositories(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes {
+        id
+        name
+        nameWithOwner
+        isPrivate
+        owner { login }
+      }
+      totalCount
+    }
+    organizations(first: 100) {
+      nodes {
+        id
+        login
+        description
+      }
+    }
+  }
+}

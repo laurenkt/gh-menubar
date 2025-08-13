@@ -1,0 +1,57 @@
+{
+  "schemaNamespace": "GitHubAPI",
+  "schemaDownloadConfiguration": {
+    "downloadMethod": {
+      "introspection": {
+        "endpointURL": "https://api.github.com/graphql",
+        "httpMethod": {
+          "POST": {}
+        },
+        "includeDeprecatedInputValues": false,
+        "outputFormat": "SDL"
+      }
+    },
+    "downloadTimeout": 60,
+    "headers": {
+      "Authorization": "token ${GITHUB_TOKEN}"
+    },
+    "outputPath": "./Sources/MenuBarApp/GraphQL/schema.graphqls"
+  },
+  "input": {
+    "operationSearchPaths": [
+      "./Sources/MenuBarApp/GraphQL/**/*.graphql"
+    ],
+    "schemaPath": "./Sources/MenuBarApp/GraphQL/schema.json"
+  },
+  "output": {
+    "testMocks": {
+      "none": {}
+    },
+    "schemaTypes": {
+      "path": "./Sources/MenuBarApp/GraphQL/Generated",
+      "moduleType": {
+        "swiftPackageManager": {}
+      }
+    },
+    "operations": {
+      "inSchemaModule": {}
+    }
+  },
+  "options": {
+    "selectionSetInitializers": {
+      "operations": false,
+      "namedFragments": false,
+      "localCacheMutations": true
+    },
+    "queryStringLiteralFormat": "multiline",
+    "schemaDocumentation": "include",
+    "apqs": "disabled",
+    "cocoapodsCompatibleImportStatements": false,
+    "warningsOnDeprecatedUsage": "include",
+    "conversionStrategies": {
+      "enumCases": "camelCase",
+      "fieldAccessors": "idiomatic"
+    },
+    "pruneGeneratedFiles": true
+  }
+}

@@ -59,25 +59,35 @@ Tests/MenuBarAppTests/
    - Auto-refresh timer with configurable intervals
    - Query-based result organization with `QueryResult` model
 
-3. **GitHubAPIService** (`GitHubAPIService.swift`)
-   - Centralized GitHub API client with comprehensive error handling
-   - Models: `GitHubPullRequest`, `GitHubCheckRun`, `GitHubUser`, etc.
-   - Token validation with repository/organization access verification
-   - Concurrent check run fetching for PR status
+3. **GitHubGraphQLService** (`GitHubGraphQLService.swift`)
+   - Primary GitHub API service using GraphQL for improved performance
+   - Maintains same interface as legacy REST service for compatibility
+   - Reduces API calls by ~75% through comprehensive single queries
+   - Falls back to REST only for workflow jobs (GitHub API limitation)
 
-4. **AppSettings** (`AppSettings.swift`)
+4. **GitHubAPIService** (`GitHubAPIService.swift`)
+   - Legacy REST API service kept for reference and fallback
+   - Models: `GitHubPullRequest`, `GitHubCheckRun`, `GitHubUser`, etc.
+   - Used by GraphQL service for workflow job details
+
+5. **MinimalGraphQLClient** (`MinimalGraphQLClient.swift`)
+   - Lightweight GraphQL client for GitHub API
+   - Handles JSON serialization and HTTP communication
+   - Error handling with proper GraphQL error parsing
+
+6. **AppSettings** (`AppSettings.swift`)
    - Settings persistence via UserDefaults and Keychain
    - Query configuration management with `QueryConfiguration` model
    - Window management for LSUIElement apps
    - Legacy compatibility for display preferences
 
-5. **SettingsView** (`SettingsView.swift`)
+7. **SettingsView** (`SettingsView.swift`)
    - Modern sidebar navigation using `NavigationSplitView`
    - Drag-and-drop PR component editor with `HorizontalDragDropEditor`
    - Token validation with detailed access information display
    - Query management with suggestions and custom editor
 
-6. **KeychainManager** (`KeychainManager.swift`)
+8. **KeychainManager** (`KeychainManager.swift`)
    - Secure API key storage using Security framework
    - Standard keychain operations: save, retrieve, delete
 
@@ -90,15 +100,84 @@ Tests/MenuBarAppTests/
 - **Query System**: Flexible GitHub search integration with `QueryConfiguration`
 - **Secure Storage**: API keys stored in system Keychain
 - **Menu Bar Best Practices**: LSUIElement configuration, proper activation policy handling
+- **GraphQL Integration**: Comprehensive single queries reduce API calls by ~75%
+
+## GraphQL Query System
+
+The app now uses GitHub's GraphQL API as the primary data source, with significant performance benefits.
+
+### Query Architecture
+
+**Main Query Types:**
+1. **Token Validation Query**: Validates API tokens and fetches user/org data
+2. **Pull Request Search Query**: Comprehensive query that fetches PRs with all associated data
+
+**Key Files:**
+- `MinimalGraphQLClient.swift`: Lightweight GraphQL client handling HTTP requests
+- `GitHubGraphQLService.swift`: Service layer with embedded GraphQL queries
+- `GraphQL/Queries.graphql`: Reference queries (actual queries are in Swift code)
+
+### Modifying GraphQL Queries
+
+When you need to add/modify data fetching:
+
+**1. Update the GraphQL Query String**
+Located in `GitHubGraphQLService.swift`:
+```swift
+let graphQLQuery = """
+    query($searchQuery: String!) {
+        search(query: $searchQuery, type: ISSUE, first: 50) {
+            nodes {
+                ... on PullRequest {
+                    # Add new fields here
+                    newField
+                }
+            }
+        }
+    }
+    """
+```
+
+**2. Update the Response Model**
+Add corresponding Swift types in the same file:
+```swift
+struct PullRequestSearchResponse: Codable {
+    // Add new fields to match GraphQL response
+}
+```
+
+**3. Update the Mapping Code**
+Add mapping logic to convert GraphQL response to existing models:
+```swift
+// In mapToExistingModels function
+pr.newProperty = prNode.newField
+```
+
+**4. Test with GraphQL Explorer**
+Use GitHub's GraphQL explorer (https://docs.github.com/en/graphql/overview/explorer) to test queries before implementing.
+
+### Performance Benefits
+
+- **Before (REST)**: ~4-5 API calls per pull request
+- **After (GraphQL)**: ~1-2 API calls per pull request
+- **Hybrid Approach**: GraphQL for most data, REST only for workflow jobs (GitHub limitation)
+
+### Error Handling
+
+GraphQL errors are handled at multiple levels:
+- HTTP errors (network issues, rate limits)  
+- GraphQL query errors (syntax, permissions)
+- Data mapping errors (response structure changes)
 
 ## Development Guidelines
 
 ### Making Changes
 
-1. **Data Layer Updates**: Modify `PullRequestViewModel` or `GitHubAPIService`
+1. **Data Layer Updates**: Modify `PullRequestViewModel` or `GitHubGraphQLService`
    - Always maintain async/await patterns
-   - Add proper error handling with user-friendly messages
-   - Test API changes with token validation flow
+   - Add proper error handling with user-friendly messages  
+   - Test GraphQL queries using GitHub's GraphQL Explorer first
+   - For new data fields, update query → response models → mapping code
 
 2. **UI Changes**: Update SwiftUI views following existing patterns
    - Use ObservableObject bindings consistently
@@ -110,10 +189,12 @@ Tests/MenuBarAppTests/
    - Add migration logic for new configuration options
    - Update `QueryConfiguration` model as needed
 
-4. **New GitHub API Integration**: Extend `GitHubAPIService`
-   - Add new models to the existing data types
-   - Follow existing error handling patterns
+4. **New GitHub API Integration**: Extend `GitHubGraphQLService`
+   - Add new fields to GraphQL queries first (test in GraphQL Explorer)
+   - Add corresponding fields to Swift response models
+   - Update mapping logic to existing `GitHubPullRequest` models
    - Add appropriate tests via snapshot testing
+   - Only use REST API if data is not available via GraphQL
 
 ### Testing
 

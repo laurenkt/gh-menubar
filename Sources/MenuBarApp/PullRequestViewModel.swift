@@ -26,7 +26,7 @@ class PullRequestViewModel: ObservableObject {
     @Published var currentUserLogin: String?
     @Published var lastRefreshTime: Date?
     
-    private let apiService = GitHubAPIService.shared
+    private let apiService = GitHubGraphQLService.shared
     private let appSettings = AppSettings.shared
     private var refreshTimer: Timer?
     
