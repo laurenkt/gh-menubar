@@ -982,7 +982,7 @@ struct DragDropPreviewPRItem: View {
                 }
                 // Separator is handled by joining with " – "
                 
-            case .orgName, .projectName, .prNumber, .authorName:
+            case .orgName, .projectName, .prNumber, .authorName, .lastModified:
                 currentGroup.append(component.exampleText)
             }
         }
