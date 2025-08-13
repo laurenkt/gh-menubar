@@ -311,44 +311,49 @@ struct PullRequestMenuItem: View {
     private func buildCompleteText() -> String {
         var result: [String] = []
         
-        for component in queryConfig.componentOrder {
-            switch component {
-            case .statusSymbol:
-                result.append(statusSymbol)
-                
-            case .title:
-                result.append(pullRequest.title)
-                
-            case .separator:
-                result.append("–")
-                
-            case .orgName:
-                if let orgName = pullRequest.repositoryOwner, !orgName.isEmpty {
-                    result.append(orgName)
+        for element in queryConfig.displayLayout {
+            switch element {
+            case .text(let text):
+                if !text.isEmpty {
+                    result.append(text)
                 }
                 
-            case .projectName:
-                if let repoName = pullRequest.repositoryName, !repoName.isEmpty {
-                    result.append(repoName)
+            case .component(let component):
+                switch component {
+                case .statusSymbol:
+                    result.append(statusSymbol)
+                    
+                case .title:
+                    result.append(pullRequest.title)
+                    
+                case .orgName:
+                    if let orgName = pullRequest.repositoryOwner, !orgName.isEmpty {
+                        result.append(orgName)
+                    }
+                    
+                case .projectName:
+                    if let repoName = pullRequest.repositoryName, !repoName.isEmpty {
+                        result.append(repoName)
+                    }
+                    
+                case .prNumber:
+                    result.append("#\(pullRequest.number)")
+                    
+                case .authorName:
+                    if !pullRequest.user.login.isEmpty {
+                        result.append("@\(pullRequest.user.login)")
+                    }
+                    
+                case .lastModified:
+                    result.append(pullRequest.updatedAt.shortTimeAgoDisplay())
                 }
-                
-            case .prNumber:
-                result.append("#\(pullRequest.number)")
-                
-            case .authorName:
-                if !pullRequest.user.login.isEmpty {
-                    result.append("@\(pullRequest.user.login)")
-                }
-                
-            case .lastModified:
-                result.append(pullRequest.updatedAt.shortTimeAgoDisplay())
             }
         }
         
         let finalResult = result.joined(separator: " ")
         
         #if DEBUG
-        print("buildCompleteText for query '\(queryConfig.title)' with component order: \(queryConfig.componentOrder.map(\.rawValue))")
+        print("buildCompleteText for query '\(queryConfig.title)' with display layout: \(queryConfig.displayLayout)")
         print("buildCompleteText result: '\(finalResult)'")
         print("repositoryOwner: \(pullRequest.repositoryOwner ?? "nil")")
         print("repositoryName: \(pullRequest.repositoryName ?? "nil")")

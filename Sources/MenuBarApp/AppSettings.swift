@@ -1,6 +1,31 @@
 import SwiftUI
 import AppKit
 
+enum DisplayElement: Codable, Identifiable, Equatable {
+    case text(String)
+    case component(PRDisplayComponent)
+    
+    var id: String {
+        switch self {
+        case .text(let string):
+            return "text_\(string.hashValue)"
+        case .component(let component):
+            return "component_\(component.rawValue)"
+        }
+    }
+    
+    static func == (lhs: DisplayElement, rhs: DisplayElement) -> Bool {
+        switch (lhs, rhs) {
+        case (.text(let lhsText), .text(let rhsText)):
+            return lhsText == rhsText
+        case (.component(let lhsComponent), .component(let rhsComponent)):
+            return lhsComponent == rhsComponent
+        default:
+            return false
+        }
+    }
+}
+
 enum PRDisplayComponent: String, CaseIterable, Codable, Identifiable {
     case statusSymbol = "status_symbol"
     case title = "title"
@@ -8,7 +33,6 @@ enum PRDisplayComponent: String, CaseIterable, Codable, Identifiable {
     case projectName = "project_name"
     case prNumber = "pr_number"
     case authorName = "author_name"
-    case separator = "separator"
     case lastModified = "last_modified"
     
     var id: String { rawValue }
@@ -21,7 +45,6 @@ enum PRDisplayComponent: String, CaseIterable, Codable, Identifiable {
         case .projectName: return "Project"
         case .prNumber: return "PR Number"
         case .authorName: return "Author"
-        case .separator: return "Separator (–)"
         case .lastModified: return "Last Modified"
         }
     }
@@ -34,7 +57,6 @@ enum PRDisplayComponent: String, CaseIterable, Codable, Identifiable {
         case .projectName: return "mobile-app"
         case .prNumber: return "#1234"
         case .authorName: return "@johndoe"
-        case .separator: return "–"
         case .lastModified: return "2 hours ago"
         }
     }
@@ -45,8 +67,11 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     var title: String
     var query: String
     
-    // Component ordering (new drag & drop interface)
-    var componentOrder: [PRDisplayComponent]
+    // Display layout (new freetext + token interface)
+    var displayLayout: [DisplayElement]
+    
+    // Component ordering (legacy drag & drop interface - kept for migration)
+    var componentOrder: [PRDisplayComponent]?
     
     // Legacy display preferences (for backward compatibility)
     var showOrgName: Bool
@@ -66,11 +91,16 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
         title = try container.decode(String.self, forKey: .title)
         query = try container.decode(String.self, forKey: .query)
         
-        // Component order (new field)
-        if let order = try container.decodeIfPresent([PRDisplayComponent].self, forKey: .componentOrder) {
+        // Try new display layout first
+        if let layout = try container.decodeIfPresent([DisplayElement].self, forKey: .displayLayout) {
+            displayLayout = layout
+            componentOrder = nil
+        } else if let order = try container.decodeIfPresent([PRDisplayComponent].self, forKey: .componentOrder) {
+            // Migrate from component order to display layout
+            displayLayout = order.map { .component($0) }
             componentOrder = order
         } else {
-            // Create default order based on legacy settings for migration
+            // Create default layout based on legacy settings for migration
             var defaultOrder: [PRDisplayComponent] = [.statusSymbol, .title]
             let showOrgName = try container.decodeIfPresent(Bool.self, forKey: .showOrgName) ?? true
             let showProjectName = try container.decodeIfPresent(Bool.self, forKey: .showProjectName) ?? true
@@ -81,6 +111,8 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
             if showProjectName { defaultOrder.append(.projectName) }
             if showPRNumber { defaultOrder.append(.prNumber) }
             if showAuthorName { defaultOrder.append(.authorName) }
+            
+            displayLayout = defaultOrder.map { .component($0) }
             componentOrder = defaultOrder
         }
         
@@ -95,12 +127,14 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     
     enum CodingKeys: String, CodingKey {
         case id, title, query
+        case displayLayout
         case componentOrder
         case showOrgName, showProjectName, showPRNumber, showAuthorName
         case includeInFailingChecksCount, includeInPendingReviewsCount
     }
     
     init(title: String, query: String, 
+         displayLayout: [DisplayElement]? = nil,
          componentOrder: [PRDisplayComponent]? = nil,
          showOrgName: Bool = true,
          showProjectName: Bool = true,
@@ -112,8 +146,12 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
         self.title = title
         self.query = query
         
-        // Set default component order if not provided
-        if let order = componentOrder {
+        // Set display layout if provided, otherwise create from component order or defaults
+        if let layout = displayLayout {
+            self.displayLayout = layout
+            self.componentOrder = componentOrder
+        } else if let order = componentOrder {
+            self.displayLayout = order.map { .component($0) }
             self.componentOrder = order
         } else {
             var defaultOrder: [PRDisplayComponent] = [.statusSymbol, .title]
@@ -121,6 +159,7 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
             if showProjectName { defaultOrder.append(.projectName) }
             if showPRNumber { defaultOrder.append(.prNumber) }
             if showAuthorName { defaultOrder.append(.authorName) }
+            self.displayLayout = defaultOrder.map { .component($0) }
             self.componentOrder = defaultOrder
         }
         
@@ -135,6 +174,7 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     mutating func update(
         title: String? = nil,
         query: String? = nil,
+        displayLayout: [DisplayElement]? = nil,
         componentOrder: [PRDisplayComponent]? = nil,
         showOrgName: Bool? = nil,
         showProjectName: Bool? = nil,
@@ -145,7 +185,18 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     ) {
         if let title = title { self.title = title }
         if let query = query { self.query = query }
-        if let componentOrder = componentOrder { self.componentOrder = componentOrder }
+        if let displayLayout = displayLayout { 
+            self.displayLayout = displayLayout
+            // Clear legacy componentOrder when setting new layout
+            self.componentOrder = nil
+        }
+        if let componentOrder = componentOrder { 
+            // If only componentOrder is provided, update both for backward compatibility
+            self.componentOrder = componentOrder
+            if displayLayout == nil {
+                self.displayLayout = componentOrder.map { .component($0) }
+            }
+        }
         if let showOrgName = showOrgName { self.showOrgName = showOrgName }
         if let showProjectName = showProjectName { self.showProjectName = showProjectName }
         if let showPRNumber = showPRNumber { self.showPRNumber = showPRNumber }
@@ -161,6 +212,7 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
     func updated(
         title: String? = nil,
         query: String? = nil,
+        displayLayout: [DisplayElement]? = nil,
         componentOrder: [PRDisplayComponent]? = nil,
         showOrgName: Bool? = nil,
         showProjectName: Bool? = nil,
@@ -173,6 +225,7 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
         copy.update(
             title: title,
             query: query,
+            displayLayout: displayLayout,
             componentOrder: componentOrder,
             showOrgName: showOrgName,
             showProjectName: showProjectName,
@@ -184,14 +237,38 @@ struct QueryConfiguration: Codable, Identifiable, Equatable {
         return copy
     }
     
-    static let defaultQuery = QueryConfiguration(title: "My Open PRs", query: "is:open is:pr author:@me")
+    static let defaultQuery = QueryConfiguration(
+        title: "My Open PRs", 
+        query: "is:open is:pr author:@me",
+        displayLayout: [.component(.statusSymbol), .component(.title)]
+    )
     
     static let suggestedQueries = [
-        QueryConfiguration(title: "My Open PRs", query: "is:open is:pr author:@me"),
-        QueryConfiguration(title: "Review Requests", query: "is:open is:pr review-requested:@me"),
-        QueryConfiguration(title: "My Recent PRs", query: "is:pr author:@me sort:updated-desc"),
-        QueryConfiguration(title: "Team PRs", query: "is:open is:pr user:YOUR_ORG"),
-        QueryConfiguration(title: "Draft PRs", query: "is:open is:pr is:draft author:@me")
+        QueryConfiguration(
+            title: "My Open PRs", 
+            query: "is:open is:pr author:@me",
+            displayLayout: [.component(.statusSymbol), .component(.title)]
+        ),
+        QueryConfiguration(
+            title: "Review Requests", 
+            query: "is:open is:pr review-requested:@me",
+            displayLayout: [.component(.statusSymbol), .component(.title)]
+        ),
+        QueryConfiguration(
+            title: "My Recent PRs", 
+            query: "is:pr author:@me sort:updated-desc",
+            displayLayout: [.component(.statusSymbol), .component(.title)]
+        ),
+        QueryConfiguration(
+            title: "Team PRs", 
+            query: "is:open is:pr user:YOUR_ORG",
+            displayLayout: [.component(.statusSymbol), .component(.title)]
+        ),
+        QueryConfiguration(
+            title: "Draft PRs", 
+            query: "is:open is:pr is:draft author:@me",
+            displayLayout: [.component(.statusSymbol), .component(.title)]
+        )
     ]
 }
 
@@ -318,6 +395,7 @@ class AppSettings: ObservableObject {
         let duplicatedQuery = QueryConfiguration(
             title: "\(originalQuery.title) (Copy)",
             query: originalQuery.query,
+            displayLayout: originalQuery.displayLayout,
             componentOrder: originalQuery.componentOrder,
             showOrgName: originalQuery.showOrgName,
             showProjectName: originalQuery.showProjectName,
