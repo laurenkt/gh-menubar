@@ -414,7 +414,7 @@ class GitHubGraphQLService: ObservableObject {
             
             // Create the PR object
             var pr = GitHubPullRequest(
-                id: extractNumericId(from: prNode.id),
+                id: prNode.number, // Use PR number as ID instead of parsing GraphQL ID
                 number: prNode.number,
                 title: prNode.title,
                 htmlUrl: prNode.url,
@@ -455,16 +455,17 @@ class GitHubGraphQLService: ObservableObject {
             
             // Map check runs and commit statuses
             if let lastCommit = prNode.commits.nodes.last??.commit {
-                // Map check runs
-                var checkRuns: [GitHubCheckRun] = []
+                // Map check runs (deduplicate by ID since multiple check suites can contain same check run)
+                var checkRunsById: [Int: GitHubCheckRun] = [:]
                 if let checkSuites = lastCommit.checkSuites {
                     for suite in checkSuites.nodes {
                         guard let suite = suite, let runs = suite.checkRuns else { continue }
                         for run in runs.nodes {
                             guard let run = run else { continue }
                             
+                            let checkRunId = extractNumericId(from: run.id)
                             let checkRun = GitHubCheckRun(
-                                id: extractNumericId(from: run.id),
+                                id: checkRunId,
                                 headSha: prNode.headRefOid,
                                 status: run.status.lowercased(),
                                 conclusion: run.conclusion?.lowercased(),
@@ -479,11 +480,11 @@ class GitHubGraphQLService: ObservableObject {
                                 },
                                 jobs: []
                             )
-                            checkRuns.append(checkRun)
+                            checkRunsById[checkRunId] = checkRun
                         }
                     }
                 }
-                pr.checkRuns = checkRuns
+                pr.checkRuns = Array(checkRunsById.values)
                 
                 // Map commit statuses
                 if let status = lastCommit.status {
@@ -509,6 +510,7 @@ class GitHubGraphQLService: ObservableObject {
         
         // For GitHub Actions check runs, still need to fetch workflow jobs via REST
         await fetchWorkflowJobsForPullRequests(&pullRequests, token: token)
+        
         
         return pullRequests
     }
