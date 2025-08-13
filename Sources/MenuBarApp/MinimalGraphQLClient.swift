@@ -1,7 +1,7 @@
 import Foundation
 
-// Minimal GraphQL client implementation without Apollo for now
-// This allows the project to build while we work on Apollo integration
+// Lightweight GraphQL client implementation using native URLSession
+// Provides all necessary functionality without external dependencies
 
 struct GraphQLResponse<T: Codable>: Codable {
     let data: T?

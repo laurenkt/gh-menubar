@@ -71,7 +71,7 @@ Tests/MenuBarAppTests/
    - Used by GraphQL service for workflow job details
 
 5. **MinimalGraphQLClient** (`MinimalGraphQLClient.swift`)
-   - Lightweight GraphQL client for GitHub API
+   - Native URLSession-based GraphQL client (no external dependencies)
    - Handles JSON serialization and HTTP communication
    - Error handling with proper GraphQL error parsing
 
@@ -113,7 +113,7 @@ The app now uses GitHub's GraphQL API as the primary data source, with significa
 2. **Pull Request Search Query**: Comprehensive query that fetches PRs with all associated data
 
 **Key Files:**
-- `MinimalGraphQLClient.swift`: Lightweight GraphQL client handling HTTP requests
+- `MinimalGraphQLClient.swift`: Native URLSession-based GraphQL client (no external dependencies)
 - `GitHubGraphQLService.swift`: Service layer with embedded GraphQL queries
 - `GraphQL/Queries.graphql`: Reference queries (actual queries are in Swift code)
 
