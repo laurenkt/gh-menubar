@@ -26,7 +26,7 @@ class PullRequestViewModel: ObservableObject {
     @Published var currentUserLogin: String?
     @Published var lastRefreshTime: Date?
     
-    private let apiService = GitHubAPIService.shared
+    private let apiService = GitHubGraphQLService.shared
     private let appSettings = AppSettings.shared
     private var refreshTimer: Timer?
     
@@ -62,7 +62,7 @@ class PullRequestViewModel: ObservableObject {
             object: nil, 
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.refresh()
             }
         }
@@ -75,6 +75,11 @@ class PullRequestViewModel: ObservableObject {
     func fetchPullRequests() async {
         guard let token = appSettings.getAPIKey() else {
             errorMessage = "No API key configured"
+            return
+        }
+        
+        // Prevent concurrent fetching
+        guard !isLoading else {
             return
         }
         
@@ -120,107 +125,7 @@ class PullRequestViewModel: ObservableObject {
                 }
             }
             
-            // Fetch check runs and statuses for all PRs
-            for (resultIndex, queryResult) in results.enumerated() {
-                await withTaskGroup(of: (Int, [GitHubCheckRun]?, [GitHubCommitStatus]?, GitHubPullRequestDetails?).self) { group in
-                    for (prIndex, pr) in queryResult.pullRequests.enumerated() {
-                        guard let repoName = pr.repositoryName,
-                              let repoOwner = extractOwnerFromRepositoryUrl(pr.repositoryUrl) else {
-                            continue
-                        }
-                        
-                        group.addTask {
-                            do {
-                                let prDetails = try await self.apiService.fetchPullRequestDetails(
-                                    owner: repoOwner,
-                                    repo: repoName,
-                                    number: pr.number,
-                                    token: token
-                                )
-                                
-                                // Fetch both check runs and commit statuses concurrently
-                                async let checkRuns = try self.apiService.fetchCheckRuns(
-                                    for: repoOwner,
-                                    repo: repoName,
-                                    sha: prDetails.head.sha,
-                                    token: token
-                                )
-                                
-                                async let commitStatuses = try self.apiService.fetchCommitStatuses(
-                                    for: repoOwner,
-                                    repo: repoName,
-                                    sha: prDetails.head.sha,
-                                    token: token
-                                )
-                                
-                                let checkRunsResult = try await checkRuns
-                                let statusesResult = try await commitStatuses
-                                
-                                return (prIndex, checkRunsResult, statusesResult, prDetails)
-                            } catch {
-                                #if DEBUG
-                                print("Failed to fetch checks for PR \(pr.number): \(error)")
-                                #endif
-                                return (prIndex, nil, nil, nil)
-                            }
-                        }
-                    }
-                    
-                    for await (prIndex, checkRuns, commitStatuses, prDetails) in group {
-                        if let checkRuns = checkRuns {
-                            results[resultIndex].pullRequests[prIndex].checkRuns = checkRuns
-                        }
-                        if let commitStatuses = commitStatuses {
-                            results[resultIndex].pullRequests[prIndex].commitStatuses = commitStatuses
-                        }
-                        if let prDetails = prDetails {
-                            results[resultIndex].pullRequests[prIndex].mergeable = prDetails.mergeable
-                            results[resultIndex].pullRequests[prIndex].mergeableState = prDetails.mergeableState
-                            results[resultIndex].pullRequests[prIndex].requestedReviewers = prDetails.requestedReviewers
-                            results[resultIndex].pullRequests[prIndex].assignees = prDetails.assignees
-                        }
-                    }
-                }
-                
-                // Fetch workflow jobs for GitHub Actions check runs
-                for (resultIndex, queryResult) in results.enumerated() {
-                    await withTaskGroup(of: (Int, Int, [GitHubWorkflowJob]?).self) { group in
-                        for (prIndex, pr) in queryResult.pullRequests.enumerated() {
-                            guard let repoName = pr.repositoryName,
-                                  let repoOwner = extractOwnerFromRepositoryUrl(pr.repositoryUrl) else {
-                                continue
-                            }
-                            
-                            for (checkIndex, checkRun) in pr.checkRuns.enumerated() {
-                                if checkRun.isGitHubActions, let runId = checkRun.workflowRunId {
-                                    group.addTask {
-                                        do {
-                                            let jobs = try await self.apiService.fetchWorkflowJobs(
-                                                for: repoOwner,
-                                                repo: repoName,
-                                                runId: runId,
-                                                token: token
-                                            )
-                                            return (prIndex, checkIndex, jobs)
-                                        } catch {
-                                            #if DEBUG
-                                            print("Failed to fetch workflow jobs for check run \(checkRun.name): \(error)")
-                                            #endif
-                                            return (prIndex, checkIndex, nil)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        for await (prIndex, checkIndex, jobs) in group {
-                            if let jobs = jobs {
-                                results[resultIndex].pullRequests[prIndex].checkRuns[checkIndex].jobs = jobs
-                            }
-                        }
-                    }
-                }
-            }
+            // GraphQL service already fetches workflow jobs for GitHub Actions check runs
             
             // Sort results by query order from settings
             let queryOrder = queries.map { $0.id }
@@ -232,7 +137,7 @@ class PullRequestViewModel: ObservableObject {
             
             queryResults = results
             
-            // Keep the old pullRequests for backward compatibility (flatten all results)
+            // Keep the old pullRequests for backward compatibility
             pullRequests = results.flatMap { $0.pullRequests }
             
             lastRefreshTime = Date()

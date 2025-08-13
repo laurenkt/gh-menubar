@@ -6,7 +6,7 @@ extension Notification.Name {
 
 struct SettingsView: View {
     @StateObject private var appSettings = AppSettings.shared
-    @StateObject private var githubService = GitHubAPIService.shared
+    @StateObject private var githubService = GitHubGraphQLService.shared
     @State private var apiKey: String = ""
     @State private var showAPIKey: Bool = false
     @State private var showSaveAlert: Bool = false
@@ -124,7 +124,7 @@ struct SettingsView: View {
 }
 
 struct TokenValidationResultView: View {
-    @StateObject private var githubService = GitHubAPIService.shared
+    @StateObject private var githubService = GitHubGraphQLService.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -254,7 +254,7 @@ struct TokenValidationResultView: View {
 
 struct APISettingsView: View {
     @StateObject private var appSettings = AppSettings.shared
-    @StateObject private var githubService = GitHubAPIService.shared
+    @StateObject private var githubService = GitHubGraphQLService.shared
     
     @Binding var apiKey: String
     @Binding var showAPIKey: Bool
