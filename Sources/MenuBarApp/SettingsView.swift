@@ -474,7 +474,7 @@ struct QueryRowView: View {
 struct QueryEditSheet: View {
     @State private var title: String
     @State private var query: String
-    @State private var componentOrder: [PRDisplayComponent]
+    @State private var displayLayout: [DisplayElement]
     @State private var showOrgName: Bool
     @State private var showProjectName: Bool
     @State private var showPRNumber: Bool
@@ -490,7 +490,7 @@ struct QueryEditSheet: View {
         self.originalQuery = query
         self._title = State(initialValue: query.title)
         self._query = State(initialValue: query.query)
-        self._componentOrder = State(initialValue: query.componentOrder)
+        self._displayLayout = State(initialValue: query.displayLayout)
         self._showOrgName = State(initialValue: query.showOrgName)
         self._showProjectName = State(initialValue: query.showProjectName)
         self._showPRNumber = State(initialValue: query.showPRNumber)
@@ -543,8 +543,8 @@ struct QueryEditSheet: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
-                HorizontalDragDropEditor(
-                    componentOrder: $componentOrder
+                TokenTextField(
+                    displayLayout: $displayLayout
                 )
             }
             
@@ -573,7 +573,7 @@ struct QueryEditSheet: View {
                     let updatedQuery = originalQuery.updated(
                         title: title,
                         query: query,
-                        componentOrder: componentOrder,
+                        displayLayout: displayLayout,
                         showOrgName: showOrgName,
                         showProjectName: showProjectName,
                         showPRNumber: showPRNumber,
@@ -646,61 +646,26 @@ struct PreviewPRItem: View {
     }
 }
 
-struct HorizontalDragDropEditor: View {
-    @Binding var componentOrder: [PRDisplayComponent]
+
+struct TokenTextField: View {
+    @Binding var displayLayout: [DisplayElement]
     @State private var availableComponents: [PRDisplayComponent] = []
-    @State private var draggedComponent: PRDisplayComponent?
-    @State private var dropTargetIndex: Int? = nil
+    @State private var coordinator: TokenFieldView.Coordinator?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Layout editor with horizontal draggable components
+            // Layout editor as native text view with token attachments
             VStack(alignment: .leading, spacing: 6) {
                 Text("Layout:")
                     .font(.subheadline)
                     .bold()
                 
-                // Interactive draggable preview with drop indicators
-                HStack(spacing: 0) {
-                    // Leading drop zone
-                    DropZoneIndicator(
-                        isActive: dropTargetIndex == 0,
-                        index: 0,
-                        componentOrder: $componentOrder,
-                        availableComponents: $availableComponents,
-                        draggedComponent: $draggedComponent,
-                        dropTargetIndex: $dropTargetIndex
-                    )
-                    
-                    ForEach(Array(componentOrder.enumerated()), id: \.element.id) { index, component in
-                        HStack(spacing: 0) {
-                            HorizontalDragChip(
-                                component: component,
-                                isInPreview: true,
-                                draggedComponent: $draggedComponent
-                            )
-                            
-                            // Drop zone after each component
-                            DropZoneIndicator(
-                                isActive: dropTargetIndex == index + 1,
-                                index: index + 1,
-                                componentOrder: $componentOrder,
-                                availableComponents: $availableComponents,
-                                draggedComponent: $draggedComponent,
-                                dropTargetIndex: $dropTargetIndex
-                            )
-                        }
-                    }
-                }
-                .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-                .onDrop(of: [.text], delegate: PreviewAreaDropDelegate(
-                    componentOrder: $componentOrder,
-                    availableComponents: $availableComponents,
-                    draggedComponent: $draggedComponent,
-                    dropTargetIndex: $dropTargetIndex
-                ))
+                // Native NSTokenField - the proper solution!
+                TokenFieldView(
+                    displayLayout: $displayLayout,
+                    coordinator: $coordinator
+                )
+                .frame(minHeight: 40)
             }
             
             // Palette of available components
@@ -712,14 +677,11 @@ struct HorizontalDragDropEditor: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(availableComponents, id: \.id) { component in
-                            HorizontalDragChip(
-                                component: component,
-                                isInPreview: false,
-                                draggedComponent: $draggedComponent
-                            )
-                            .onTapGesture(count: 2) {
-                                addToLayout(component)
+                            Button(component.displayName) {
+                                addComponent(component)
                             }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
                     }
                     .padding(.horizontal, 2)
@@ -731,10 +693,6 @@ struct HorizontalDragDropEditor: View {
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                 )
-                .onDrop(of: [.text], delegate: PaletteDropDelegate(
-                    componentOrder: $componentOrder,
-                    draggedComponent: $draggedComponent
-                ))
             }
             
             HStack {
@@ -745,7 +703,7 @@ struct HorizontalDragDropEditor: View {
                 
                 Spacer()
                 
-                Text("Drag to rearrange • Double-click to add • Drag back to palette to remove")
+                Text("Drag to add components • Double-click to add • Type text directly")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -753,55 +711,81 @@ struct HorizontalDragDropEditor: View {
         .onAppear {
             updateAvailableComponents()
         }
-        .onChange(of: componentOrder) { _ in
+        .onChange(of: displayLayout) { _ in
             updateAvailableComponents()
         }
     }
     
     private func updateAvailableComponents() {
-        availableComponents = PRDisplayComponent.allCases.filter { component in
-            // Separators can always be added (multiple allowed)
-            if component == .separator {
-                return true
+        let usedComponents = displayLayout.compactMap { element in
+            if case .component(let component) = element {
+                return component
             }
+            return nil
+        }
+        
+        availableComponents = PRDisplayComponent.allCases.filter { component in
             // Other components can only be added if not already in use
-            return !componentOrder.contains(component)
+            return !usedComponents.contains(component)
         }
     }
     
-    private func addToLayout(_ component: PRDisplayComponent) {
-        // Separators can be added multiple times, others only if not already present
-        if component == .separator || !componentOrder.contains(component) {
-            componentOrder.append(component)
-        }
-    }
     
-    private func removeFromLayout(_ component: PRDisplayComponent) {
-        componentOrder.removeAll { $0 == component }
+    private func addComponent(_ component: PRDisplayComponent) {
+        // Use the coordinator to insert the component properly
+        coordinator?.insertComponent(component)
     }
     
     private func resetToDefault() {
-        componentOrder = [.statusSymbol, .title, .orgName, .projectName, .prNumber, .authorName]
+        displayLayout = [.component(.statusSymbol), .component(.title)]
     }
 }
 
-struct HorizontalDragChip: View {
+struct TokenChip: View {
     let component: PRDisplayComponent
-    let isInPreview: Bool
+    let isSelected: Bool
+    let onTap: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(component.displayName)
+                .font(.system(.caption, weight: .medium))
+                .foregroundColor(.white)
+            
+            Button(action: onDelete) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(isSelected ? Color.blue.opacity(0.9) : Color.blue.opacity(0.7))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+        )
+        .onTapGesture(perform: onTap)
+        .scaleEffect(isSelected ? 1.05 : 1.0)
+        .animation(.easeInOut(duration: 0.1), value: isSelected)
+    }
+}
+
+struct DraggableChip: View {
+    let component: PRDisplayComponent
     @Binding var draggedComponent: PRDisplayComponent?
     
     var body: some View {
         Text(component.displayName)
-            .font(.system(.body))
-            .foregroundColor(isInPreview ? .primary : .secondary)
-            .padding(.horizontal, isInPreview ? 6 : 8)
-            .padding(.vertical, isInPreview ? 3 : 4)
-            .background(isInPreview ? Color.blue.opacity(0.15) : Color.gray.opacity(0.15))
-            .cornerRadius(isInPreview ? 4 : 6)
-            .overlay(
-                RoundedRectangle(cornerRadius: isInPreview ? 4 : 6)
-                    .stroke(isInPreview ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
-            )
+            .font(.system(.caption))
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.gray.opacity(0.15))
+            .cornerRadius(6)
             .onDrag {
                 draggedComponent = component
                 return NSItemProvider(object: component.rawValue as NSString)
@@ -812,186 +796,181 @@ struct HorizontalDragChip: View {
     }
 }
 
-
-struct PreviewAreaDropDelegate: DropDelegate {
-    @Binding var componentOrder: [PRDisplayComponent]
-    @Binding var availableComponents: [PRDisplayComponent]
-    @Binding var draggedComponent: PRDisplayComponent?
-    @Binding var dropTargetIndex: Int?
+struct TokenFieldView: NSViewRepresentable {
+    @Binding var displayLayout: [DisplayElement]
+    @Binding var coordinator: Coordinator?
     
-    func dropExited(info: DropInfo) {
-        dropTargetIndex = nil
-    }
-    
-    func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggedComponent = nil
-            dropTargetIndex = nil
+    func makeNSView(context: Context) -> NSTokenField {
+        let tokenField = NSTokenField()
+        
+        // Configure the token field
+        tokenField.tokenStyle = .rounded
+        tokenField.placeholderString = "Type text or drag components here..."
+        
+        // Set delegate
+        tokenField.delegate = context.coordinator
+        
+        // Enable drag and drop
+        tokenField.registerForDraggedTypes([.string])
+        
+        // Set up drag destination
+        context.coordinator.tokenField = tokenField
+        
+        // Set initial value
+        tokenField.objectValue = convertDisplayLayoutToTokens(displayLayout)
+        
+        // Expose the coordinator
+        DispatchQueue.main.async {
+            coordinator = context.coordinator
         }
         
-        guard let draggedComponent = draggedComponent else { return false }
+        return tokenField
+    }
+    
+    func updateNSView(_ nsView: NSTokenField, context: Context) {
+        // Only update if the current tokens differ from displayLayout to avoid infinite loops
+        let currentTokens = nsView.objectValue as? [Any] ?? []
+        let expectedTokens = convertDisplayLayoutToTokens(displayLayout)
         
-        // If adding from palette to end of preview
-        if availableComponents.contains(draggedComponent) || draggedComponent == .separator {
-            componentOrder.append(draggedComponent)
+        if !areTokenArraysEqual(currentTokens, expectedTokens) {
+            nsView.objectValue = expectedTokens
         }
-        
-        return true
-    }
-}
-
-struct PaletteDropDelegate: DropDelegate {
-    @Binding var componentOrder: [PRDisplayComponent]
-    @Binding var draggedComponent: PRDisplayComponent?
-    
-    func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggedComponent = nil
-        }
-        
-        guard let draggedComponent = draggedComponent else { return false }
-        
-        // If removing from preview back to palette
-        if componentOrder.contains(draggedComponent) {
-            componentOrder.removeAll { $0 == draggedComponent }
-        }
-        
-        return true
-    }
-}
-
-struct DropZoneIndicator: View {
-    let isActive: Bool
-    let index: Int
-    @Binding var componentOrder: [PRDisplayComponent]
-    @Binding var availableComponents: [PRDisplayComponent]
-    @Binding var draggedComponent: PRDisplayComponent?
-    @Binding var dropTargetIndex: Int?
-    
-    var body: some View {
-        Rectangle()
-            .fill(isActive ? Color.blue : Color.clear)
-            .frame(width: isActive ? 2 : 4, height: 20)
-            .animation(.easeInOut(duration: 0.15), value: isActive)
-            .onDrop(of: [.text], delegate: DropZoneDelegate(
-                targetIndex: index,
-                componentOrder: $componentOrder,
-                availableComponents: $availableComponents,
-                draggedComponent: $draggedComponent,
-                dropTargetIndex: $dropTargetIndex
-            ))
-    }
-}
-
-struct DropZoneDelegate: DropDelegate {
-    let targetIndex: Int
-    @Binding var componentOrder: [PRDisplayComponent]
-    @Binding var availableComponents: [PRDisplayComponent]
-    @Binding var draggedComponent: PRDisplayComponent?
-    @Binding var dropTargetIndex: Int?
-    
-    func dropEntered(info: DropInfo) {
-        dropTargetIndex = targetIndex
     }
     
-    func dropExited(info: DropInfo) {
-        dropTargetIndex = nil
+    func makeCoordinator() -> Coordinator {
+        Coordinator(displayLayout: $displayLayout)
     }
     
-    func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggedComponent = nil
-            dropTargetIndex = nil
-        }
+    private func convertDisplayLayoutToTokens(_ layout: [DisplayElement]) -> [Any] {
+        var tokens: [Any] = []
         
-        guard let draggedComponent = draggedComponent else { return false }
-        
-        // If reordering within preview
-        if let currentIndex = componentOrder.firstIndex(of: draggedComponent) {
-            // Only move if the target position is different
-            if currentIndex != targetIndex && targetIndex != currentIndex + 1 {
-                // Remove from current position
-                let component = componentOrder.remove(at: currentIndex)
-                
-                // Calculate adjusted target index
-                let adjustedTargetIndex: Int
-                if targetIndex > currentIndex {
-                    // Moving forward - target index needs adjustment since we removed an element before it
-                    adjustedTargetIndex = targetIndex - 1
-                } else {
-                    // Moving backward - target index stays the same
-                    adjustedTargetIndex = targetIndex
+        for element in layout {
+            switch element {
+            case .text(let text):
+                // Add text directly
+                if !text.isEmpty {
+                    tokens.append(text)
                 }
-                
-                // Insert at the correct position
-                let finalIndex = min(adjustedTargetIndex, componentOrder.count)
-                componentOrder.insert(component, at: finalIndex)
+            case .component(let component):
+                // Add component as a token object
+                tokens.append(ComponentToken(component: component))
             }
         }
-        // If adding from palette
-        else if availableComponents.contains(draggedComponent) || draggedComponent == .separator {
-            let adjustedIndex = min(targetIndex, componentOrder.count)
-            componentOrder.insert(draggedComponent, at: adjustedIndex)
-        }
         
-        return true
+        return tokens
     }
-}
-
-struct DragDropPreviewPRItem: View {
-    let componentOrder: [PRDisplayComponent]
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Menu item will look like:")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+    private func areTokenArraysEqual(_ tokens1: [Any], _ tokens2: [Any]) -> Bool {
+        guard tokens1.count == tokens2.count else { return false }
+        
+        for (index, token1) in tokens1.enumerated() {
+            let token2 = tokens2[index]
             
-            Text(buildCompleteText())
-                .font(.system(.body, design: .monospaced))
-                .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-        }
-    }
-    
-    private func buildCompleteText() -> String {
-        var parts: [String] = []
-        var currentGroup: [String] = []
-        
-        for component in componentOrder {
-            switch component {
-            case .statusSymbol:
-                if !currentGroup.isEmpty {
-                    parts.append(currentGroup.joined(separator: " "))
-                    currentGroup = []
+            // Compare ComponentTokens
+            if let comp1 = token1 as? ComponentToken,
+               let comp2 = token2 as? ComponentToken {
+                if comp1.component != comp2.component {
+                    return false
                 }
-                parts.append(component.exampleText)
-                
-            case .title:
-                if !currentGroup.isEmpty {
-                    parts.append(currentGroup.joined(separator: " "))
-                    currentGroup = []
+            }
+            // Compare strings
+            else if let str1 = token1 as? String,
+                    let str2 = token2 as? String {
+                if str1 != str2 {
+                    return false
                 }
-                parts.append(component.exampleText)
-                
-            case .separator:
-                if !currentGroup.isEmpty {
-                    parts.append(currentGroup.joined(separator: " "))
-                    currentGroup = []
-                }
-                // Separator is handled by joining with " – "
-                
-            case .orgName, .projectName, .prNumber, .authorName, .lastModified:
-                currentGroup.append(component.exampleText)
+            }
+            // Different types
+            else {
+                return false
             }
         }
         
-        if !currentGroup.isEmpty {
-            parts.append(currentGroup.joined(separator: " "))
+        return true
+    }
+    
+    class Coordinator: NSObject, NSTokenFieldDelegate {
+        @Binding var displayLayout: [DisplayElement]
+        weak var tokenField: NSTokenField?
+        
+        init(displayLayout: Binding<[DisplayElement]>) {
+            self._displayLayout = displayLayout
         }
         
-        return parts.joined(separator: " – ")
+        func insertComponent(_ component: PRDisplayComponent) {
+            guard let tokenField = tokenField else { return }
+            
+            // Get current tokens
+            var currentTokens = tokenField.objectValue as? [Any] ?? []
+            
+            // Add the new component as a ComponentToken
+            currentTokens.append(ComponentToken(component: component))
+            
+            // Update the token field
+            tokenField.objectValue = currentTokens
+        }
+        
+        // Convert token field changes back to displayLayout
+        func controlTextDidChange(_ obj: Notification) {
+            guard let tokenField = obj.object as? NSTokenField,
+                  let tokens = tokenField.objectValue as? [Any] else { return }
+            
+            var newLayout: [DisplayElement] = []
+            
+            for token in tokens {
+                if let componentToken = token as? ComponentToken {
+                    newLayout.append(.component(componentToken.component))
+                } else if let text = token as? String, !text.isEmpty {
+                    newLayout.append(.text(text))
+                }
+            }
+            
+            displayLayout = newLayout
+        }
+        
+        // Provide display string for component tokens
+        func tokenField(_ tokenField: NSTokenField, displayStringForRepresentedObject representedObject: Any) -> String? {
+            if let componentToken = representedObject as? ComponentToken {
+                return componentToken.component.displayName
+            }
+            return nil
+        }
+        
+        // Allow all tokens to be edited
+        func tokenField(_ tokenField: NSTokenField, hasMenuForRepresentedObject representedObject: Any) -> Bool {
+            return false
+        }
+        
+        // Custom styling for component tokens
+        func tokenField(_ tokenField: NSTokenField, styleForRepresentedObject representedObject: Any) -> NSTokenField.TokenStyle {
+            if representedObject is ComponentToken {
+                return .rounded
+            }
+            return .none
+        }
+    }
+}
+
+// Wrapper class for components in NSTokenField
+class ComponentToken: NSObject {
+    let component: PRDisplayComponent
+    
+    init(component: PRDisplayComponent) {
+        self.component = component
+        super.init()
+    }
+    
+    override var description: String {
+        return component.displayName
+    }
+    
+    override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? ComponentToken else { return false }
+        return component == other.component
+    }
+    
+    override var hash: Int {
+        return component.hashValue
     }
 }
 
