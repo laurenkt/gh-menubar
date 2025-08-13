@@ -339,6 +339,9 @@ struct PullRequestMenuItem: View {
                 if !pullRequest.user.login.isEmpty {
                     result.append("@\(pullRequest.user.login)")
                 }
+                
+            case .lastModified:
+                result.append(pullRequest.updatedAt.shortTimeAgoDisplay())
             }
         }
         

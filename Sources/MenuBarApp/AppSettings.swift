@@ -9,6 +9,7 @@ enum PRDisplayComponent: String, CaseIterable, Codable, Identifiable {
     case prNumber = "pr_number"
     case authorName = "author_name"
     case separator = "separator"
+    case lastModified = "last_modified"
     
     var id: String { rawValue }
     
@@ -21,6 +22,7 @@ enum PRDisplayComponent: String, CaseIterable, Codable, Identifiable {
         case .prNumber: return "PR Number"
         case .authorName: return "Author"
         case .separator: return "Separator (–)"
+        case .lastModified: return "Last Modified"
         }
     }
     
@@ -33,6 +35,7 @@ enum PRDisplayComponent: String, CaseIterable, Codable, Identifiable {
         case .prNumber: return "#1234"
         case .authorName: return "@johndoe"
         case .separator: return "–"
+        case .lastModified: return "2 hours ago"
         }
     }
 }
