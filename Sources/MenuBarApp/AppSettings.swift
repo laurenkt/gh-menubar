@@ -8,7 +8,7 @@ enum DisplayElement: Codable, Identifiable, Equatable {
     var id: String {
         switch self {
         case .text(let string):
-            return "text_\(string.hashValue)"
+            return "text_\(string)"
         case .component(let component):
             return "component_\(component.rawValue)"
         }
