@@ -464,8 +464,10 @@ class GitHubGraphQLService: ObservableObject {
                             guard let run = run else { continue }
                             
                             let checkRunId = extractNumericId(from: run.id)
+                            // Use hash-based fallback ID if GraphQL ID parsing fails to prevent duplicates
+                            let uniqueId = checkRunId != 0 ? checkRunId : run.id.hashValue
                             let checkRun = GitHubCheckRun(
-                                id: checkRunId,
+                                id: uniqueId,
                                 headSha: prNode.headRefOid,
                                 status: run.status.lowercased(),
                                 conclusion: run.conclusion?.lowercased(),
@@ -480,7 +482,7 @@ class GitHubGraphQLService: ObservableObject {
                                 },
                                 jobs: []
                             )
-                            checkRunsById[checkRunId] = checkRun
+                            checkRunsById[uniqueId] = checkRun
                         }
                     }
                 }
