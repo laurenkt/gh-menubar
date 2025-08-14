@@ -593,10 +593,7 @@ struct QueryEditSheet: View {
 }
 
 struct PreviewPRItem: View {
-    let showOrgName: Bool
-    let showProjectName: Bool
-    let showPRNumber: Bool
-    let showAuthorName: Bool
+    let displayLayout: [DisplayElement]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -613,36 +610,42 @@ struct PreviewPRItem: View {
     }
     
     private func buildCompleteText() -> String {
-        var parts: [String] = []
+        var result: [String] = []
         
-        // Always add the status symbol and title
-        parts.append("✓ Fix login validation bug")
-        
-        // Build the info part
-        var infoParts: [String] = []
-        
-        if showOrgName {
-            infoParts.append("acme-corp")
+        for element in displayLayout {
+            switch element {
+            case .text(let text):
+                if !text.isEmpty {
+                    result.append(text)
+                }
+                
+            case .component(let component):
+                switch component {
+                case .statusSymbol:
+                    result.append("✅")
+                    
+                case .title:
+                    result.append("Fix login validation bug")
+                    
+                case .orgName:
+                    result.append("acme-corp")
+                    
+                case .projectName:
+                    result.append("mobile-app")
+                    
+                case .prNumber:
+                    result.append("#1234")
+                    
+                case .authorName:
+                    result.append("@johndoe")
+                    
+                case .lastModified:
+                    result.append("2 hours ago")
+                }
+            }
         }
         
-        if showProjectName {
-            infoParts.append("mobile-app")
-        }
-        
-        if showPRNumber {
-            infoParts.append("#1234")
-        }
-        
-        if showAuthorName {
-            infoParts.append("@johndoe")
-        }
-        
-        // Join info parts and add to main parts if not empty
-        if !infoParts.isEmpty {
-            parts.append(infoParts.joined(separator: " "))
-        }
-        
-        return parts.joined(separator: " - ")
+        return result.joined(separator: " ")
     }
 }
 
@@ -694,6 +697,9 @@ struct TokenTextField: View {
                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                 )
             }
+            
+            // Preview section
+            PreviewPRItem(displayLayout: displayLayout)
             
             HStack {
                 Button("Reset to Default") {
@@ -829,11 +835,16 @@ struct TokenFieldView: NSViewRepresentable {
     
     func updateNSView(_ nsView: NSTokenField, context: Context) {
         // Only update if the current tokens differ from displayLayout to avoid infinite loops
+        // and if we're not currently updating from code
+        guard !context.coordinator.isUpdatingFromCode else { return }
+        
         let currentTokens = nsView.objectValue as? [Any] ?? []
         let expectedTokens = convertDisplayLayoutToTokens(displayLayout)
         
         if !areTokenArraysEqual(currentTokens, expectedTokens) {
+            context.coordinator.isUpdatingFromCode = true
             nsView.objectValue = expectedTokens
+            context.coordinator.isUpdatingFromCode = false
         }
     }
     
@@ -892,6 +903,7 @@ struct TokenFieldView: NSViewRepresentable {
     class Coordinator: NSObject, NSTokenFieldDelegate {
         @Binding var displayLayout: [DisplayElement]
         weak var tokenField: NSTokenField?
+        var isUpdatingFromCode = false
         
         init(displayLayout: Binding<[DisplayElement]>) {
             self._displayLayout = displayLayout
@@ -899,6 +911,8 @@ struct TokenFieldView: NSViewRepresentable {
         
         func insertComponent(_ component: PRDisplayComponent) {
             guard let tokenField = tokenField else { return }
+            
+            isUpdatingFromCode = true
             
             // Get current tokens
             var currentTokens = tokenField.objectValue as? [Any] ?? []
@@ -908,12 +922,22 @@ struct TokenFieldView: NSViewRepresentable {
             
             // Update the token field
             tokenField.objectValue = currentTokens
+            
+            // Manually trigger the binding update to ensure synchronization
+            updateDisplayLayoutFromTokenField(tokenField)
+            
+            isUpdatingFromCode = false
         }
         
         // Convert token field changes back to displayLayout
         func controlTextDidChange(_ obj: Notification) {
-            guard let tokenField = obj.object as? NSTokenField,
-                  let tokens = tokenField.objectValue as? [Any] else { return }
+            guard !isUpdatingFromCode,
+                  let tokenField = obj.object as? NSTokenField else { return }
+            updateDisplayLayoutFromTokenField(tokenField)
+        }
+        
+        private func updateDisplayLayoutFromTokenField(_ tokenField: NSTokenField) {
+            guard let tokens = tokenField.objectValue as? [Any] else { return }
             
             var newLayout: [DisplayElement] = []
             
@@ -925,7 +949,10 @@ struct TokenFieldView: NSViewRepresentable {
                 }
             }
             
-            displayLayout = newLayout
+            // Use DispatchQueue to avoid potential update conflicts
+            DispatchQueue.main.async { [weak self] in
+                self?.displayLayout = newLayout
+            }
         }
         
         // Provide display string for component tokens
