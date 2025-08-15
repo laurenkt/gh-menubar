@@ -89,7 +89,7 @@ struct SettingsView: View {
     }
     
     private func loadExistingAPIKey() {
-        if let existingKey = appSettings.getAPIKey() {
+        if let existingKey = appSettings.loadAPIKey() {
             apiKey = existingKey
         }
     }
@@ -115,7 +115,7 @@ struct SettingsView: View {
     }
     
     private func validateExistingToken() {
-        if let existingKey = appSettings.getAPIKey() {
+        if let existingKey = appSettings.loadAPIKey() {
             Task {
                 await githubService.validateToken(existingKey)
             }
@@ -1022,8 +1022,9 @@ struct GeneralSettingsView: View {
                 Picker("Refresh Interval", selection: Binding(
                     get: { appSettings.refreshInterval },
                     set: { newInterval in
-                        appSettings.setRefreshInterval(newInterval)
-                        viewModel.startAutoRefresh()
+                        appSettings.refreshInterval = newInterval
+                        appSettings.saveRefreshInterval()
+                        viewModel.refresh()
                     }
                 )) {
                     ForEach(AppSettings.refreshIntervalOptions, id: \.interval) { option in

@@ -1,124 +1,17 @@
 import SwiftUI
 
-// MARK: - UI Configuration Constants
-private enum UIConstants {
-    static let menuBarWidth: CGFloat = 320
-    static let scrollViewMaxHeight: CGFloat = 400
-}
-
-@main
-struct MenuBarApp: App {
-    @StateObject private var appSettings = AppSettings.shared
-    @StateObject private var viewModel = PullRequestViewModel()
-    
-    var body: some Scene {
-        MenuBarExtra {
-            MenuBarExtraView(viewModel: viewModel)
-        } label: {
-            if viewModel.pendingActionsCount > 0 {
-                Text("\(viewModel.pendingActionsCount) PRs")
-                    .font(.system(size: 12, weight: .medium))
-            } else {
-                Image(systemName: "arrow.triangle.pull")
-            }
-        }
-        .menuBarExtraStyle(.menu)
-    }
-}
-
-struct MenuBarExtraView: View {
-    @StateObject private var appSettings = AppSettings.shared
-    @ObservedObject var viewModel: PullRequestViewModel
-    
-    private func formatLastRefreshTime(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-    
-    var body: some View {
-        if appSettings.hasAPIKey {
-            if let error = viewModel.errorMessage {
-                Text("Error: \(error)")
-                    .disabled(true)
-            } else if viewModel.queryResults.isEmpty && !viewModel.isLoading {
-                Text("No pull requests found")
-                    .disabled(true)
-            } else {
-                ForEach(viewModel.queryResults) { queryResult in
-                    if !queryResult.query.title.isEmpty {
-                        Section(queryResult.query.title) {
-                            if queryResult.pullRequests.isEmpty {
-                                Text("No PRs found")
-                                    .disabled(true)
-                            } else {
-                                ForEach(queryResult.pullRequests) { pr in
-                                    PullRequestMenuItem(pullRequest: pr, queryConfig: queryResult.query)
-                                }
-                            }
-                        }
-                    } else {
-                        ForEach(queryResult.pullRequests) { pr in
-                            PullRequestMenuItem(pullRequest: pr, queryConfig: queryResult.query)
-                        }
-                    }
-                }
-            }
-            
-            Divider()
-            
-            Button("Refresh") {
-                viewModel.refresh()
-            }
-            .keyboardShortcut("r")
-            .disabled(viewModel.isLoading)
-            
-            if let lastRefresh = viewModel.lastRefreshTime {
-                Text("Last updated: \(formatLastRefreshTime(lastRefresh))")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .disabled(true)
-            }
-        } else {
-            Text("No API Key Configured")
-                .disabled(true)
-            
-            Text("Configure in Preferences...")
-                .disabled(true)
-        }
-        
-        Divider()
-        
-        Button("Preferences...") {
-            appSettings.openSettings()
-        }
-        .keyboardShortcut(",", modifiers: .command)
-        
-        Button("Quit") {
-            NSApplication.shared.terminate(nil)
-        }
-        .keyboardShortcut("q")
-    }
-}
-
 struct PullRequestMenuItem: View {
     let pullRequest: GitHubPullRequest
     let queryConfig: QueryConfiguration
     
     private var statusSymbol: String {
-        // Check if PR needs review first
         if pullRequest.needsReview {
             return "👀"
         }
         
-        // Always show green check for PRs ready to merge
         if pullRequest.isReadyToMerge {
             return "✅"
         }
-        
-        #if DEBUG
-        print("PR #\(pullRequest.number) '\(pullRequest.title)': checkStatus=\(pullRequest.checkStatus), statusSymbol will be...")
-        #endif
         
         switch pullRequest.checkStatus {
         case .success:
@@ -145,7 +38,6 @@ struct PullRequestMenuItem: View {
                 
                 Divider()
                 
-                // Show branch conflicts if they exist
                 if pullRequest.hasBranchConflicts {
                     Text("❌ Branch conflicts prevent checks from running")
                         .disabled(true)
@@ -155,7 +47,6 @@ struct PullRequestMenuItem: View {
                     }
                 }
                 
-                // Show commit statuses from third-party CI providers
                 ForEach(pullRequest.commitStatuses) { status in
                     Button(action: {
                         if let targetUrl = status.targetUrl, let url = URL(string: targetUrl) {
@@ -195,12 +86,11 @@ struct PullRequestMenuItem: View {
                                         
                                         ForEach(job.steps) { step in
                                             Button(action: {
-                                                // Steps don't have individual URLs, open the job
                                                 openWorkflowJob(job)
                                             }) {
                                                 Text("\(stepStatusSymbol(step)) \(step.name)")
                                             }
-                                            .disabled(true) // Steps don't have individual URLs
+                                            .disabled(true)
                                         }
                                     } label: {
                                         Text("\(jobStatusSymbol(job)) \(job.name)")
@@ -350,113 +240,6 @@ struct PullRequestMenuItem: View {
             }
         }
         
-        let finalResult = result.joined(separator: " ")
-        
-        #if DEBUG
-        print("buildCompleteText for query '\(queryConfig.title)' with display layout: \(queryConfig.displayLayout)")
-        print("buildCompleteText result: '\(finalResult)'")
-        print("repositoryOwner: \(pullRequest.repositoryOwner ?? "nil")")
-        print("repositoryName: \(pullRequest.repositoryName ?? "nil")")
-        print("user.login: \(pullRequest.user.login)")
-        #endif
-        
-        return finalResult
-    }
-    
-    private func buildInfoText() -> String {
-        var components: [String] = []
-        
-        // Add organization name if enabled
-        if queryConfig.showOrgName, let orgName = pullRequest.repositoryOwner, !orgName.isEmpty {
-            components.append(orgName)
-        }
-        
-        // Add project name if enabled
-        if queryConfig.showProjectName, let repoName = pullRequest.repositoryName, !repoName.isEmpty {
-            components.append(repoName)
-        }
-        
-        // Add PR number if enabled
-        if queryConfig.showPRNumber {
-            components.append("#\(pullRequest.number)")
-        }
-        
-        // Add author name if enabled
-        if queryConfig.showAuthorName, !pullRequest.user.login.isEmpty {
-            components.append("@\(pullRequest.user.login)")
-        }
-        
-        return components.joined(separator: " ")
-    }
-}
-
-struct CheckStatusIcon: View {
-    let status: CheckStatus
-    
-    var body: some View {
-        Image(systemName: iconName)
-            .foregroundColor(statusColor)
-            .font(.caption)
-    }
-    
-    private var iconName: String {
-        switch status {
-        case .success:
-            return "checkmark.circle.fill"
-        case .failed:
-            return "xmark.circle.fill"
-        case .inProgress:
-            return "clock.fill"
-        case .unknown:
-            return "circle"
-        }
-    }
-    
-    private var statusColor: Color {
-        switch status {
-        case .success:
-            return .green
-        case .failed:
-            return .red
-        case .inProgress:
-            return .orange
-        case .unknown:
-            return .secondary
-        }
-    }
-}
-
-
-struct CheckRunStatusIcon: View {
-    let checkRun: GitHubCheckRun
-    
-    var body: some View {
-        Image(systemName: iconName)
-            .foregroundColor(statusColor)
-            .font(.caption)
-    }
-    
-    private var iconName: String {
-        if checkRun.isSuccessful {
-            return "checkmark.circle.fill"
-        } else if checkRun.isFailed {
-            return "xmark.circle.fill"
-        } else if checkRun.isInProgress {
-            return "clock.fill"
-        } else {
-            return "questionmark.circle"
-        }
-    }
-    
-    private var statusColor: Color {
-        if checkRun.isSuccessful {
-            return .green
-        } else if checkRun.isFailed {
-            return .red
-        } else if checkRun.isInProgress {
-            return .orange
-        } else {
-            return .secondary
-        }
+        return result.joined(separator: " ")
     }
 }
