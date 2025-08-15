@@ -281,13 +281,15 @@ class WindowDelegate: NSObject, NSWindowDelegate {
     }
 }
 
-class AppSettings: ObservableObject {
+class AppSettings: SettingsServiceProtocol {
     static let shared = AppSettings()
     
     @Published var hasAPIKey: Bool = false
     @Published var isSettingsPresented: Bool = false
     @Published var queries: [QueryConfiguration] = []
-    @Published var refreshInterval: TimeInterval = 300 // 5 minutes default
+    @Published var refreshInterval: Double = 300 // 5 minutes default
+    @Published var useGraphQL: Bool = true
+    @Published var appUpdateInterval: Double = 1.0
     
     private let keychainManager = KeychainManager.shared
     private var settingsWindow: NSWindow?
@@ -295,12 +297,10 @@ class AppSettings: ObservableObject {
     private let refreshIntervalKey = "refreshInterval"
     
     // Testing support
-    #if DEBUG
     var hasAPIKeyForTesting: Bool {
         get { hasAPIKey }
         set { hasAPIKey = newValue }
     }
-    #endif
     
     private init() {
         checkForExistingAPIKey()
@@ -309,7 +309,7 @@ class AppSettings: ObservableObject {
     }
     
     func checkForExistingAPIKey() {
-        hasAPIKey = keychainManager.getAPIKey() != nil
+        hasAPIKey = keychainManager.loadAPIKey() != nil
     }
     
     func saveAPIKey(_ apiKey: String) -> Bool {
@@ -320,8 +320,8 @@ class AppSettings: ObservableObject {
         return success
     }
     
-    func getAPIKey() -> String? {
-        return keychainManager.getAPIKey()
+    func loadAPIKey() -> String? {
+        return keychainManager.loadAPIKey()
     }
     
     func deleteAPIKey() -> Bool {
@@ -454,4 +454,12 @@ class AppSettings: ObservableObject {
         ("5 minutes", 300),
         ("60 minutes", 3600)
     ]
+    
+    func resetToDefaults() {
+        refreshInterval = 300
+        useGraphQL = true
+        appUpdateInterval = 1.0
+        queries = []
+        saveQueries()
+    }
 }
