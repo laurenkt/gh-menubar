@@ -19,16 +19,54 @@ private enum ViewModelConstants {
 
 @MainActor
 class PullRequestViewModel: ObservableObject {
-    @Published var pullRequests: [GitHubPullRequest] = []
-    @Published var queryResults: [QueryResult] = []
-    @Published var isLoading: Bool = false
-    @Published var errorMessage: String?
-    @Published var currentUserLogin: String?
-    @Published var lastRefreshTime: Date?
+    @Published private(set) var state: ViewState = .idle
+    @Published private(set) var currentUserLogin: String?
+    @Published private(set) var lastRefreshTime: Date?
     
-    private let apiService = GitHubGraphQLService.shared
-    private let appSettings = AppSettings.shared
+    private let apiService: any GitHubServiceProtocol
+    private let settingsService: any SettingsServiceProtocol
+    private let keychainService: any KeychainServiceProtocol
     private var refreshTimer: Timer?
+    
+    // MARK: - Computed Properties for Backward Compatibility
+    
+    var isLoading: Bool {
+        state.isLoading
+    }
+    
+    var errorMessage: String? {
+        state.errorMessage
+    }
+    
+    var queryResults: [QueryResult] {
+        state.queryResults
+    }
+    
+    var pullRequests: [GitHubPullRequest] {
+        queryResults.flatMap { $0.pullRequests }
+    }
+    
+    init(dependencies: DependencyContainer = DefaultDependencyContainer()) {
+        self.apiService = dependencies.gitHubService
+        self.settingsService = dependencies.settingsService
+        self.keychainService = dependencies.keychainService
+        setupAutoRefresh()
+        
+        // Listen for query updates from settings
+        NotificationCenter.default.addObserver(
+            forName: .queriesUpdated, 
+            object: nil, 
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refresh()
+            }
+        }
+    }
+    
+    deinit {
+        refreshTimer?.invalidate()
+    }
     
     var pendingActionsCount: Int {
         guard let userLogin = currentUserLogin else { return 0 }
@@ -53,43 +91,23 @@ class PullRequestViewModel: ObservableObject {
         return count
     }
     
-    init() {
-        startAutoRefresh()
-        
-        // Listen for query updates from settings
-        NotificationCenter.default.addObserver(
-            forName: .queriesUpdated, 
-            object: nil, 
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.refresh()
-            }
-        }
-    }
-    
-    deinit {
-        refreshTimer?.invalidate()
-    }
     
     func fetchPullRequests() async {
-        guard let token = appSettings.getAPIKey() else {
-            errorMessage = "No API key configured"
+        guard let token = keychainService.loadAPIKey() else {
+            state = .error("No API key configured")
             return
         }
         
         // Prevent concurrent fetching
-        guard !isLoading else {
+        guard !state.isLoading else {
             return
         }
         
-        isLoading = true
-        errorMessage = nil
+        state = .loading
         
-        let queries = appSettings.queries
+        let queries = settingsService.queries
         guard !queries.isEmpty else {
-            errorMessage = "No search queries configured"
-            isLoading = false
+            state = .error("No search queries configured")
             return
         }
         
@@ -135,16 +153,10 @@ class PullRequestViewModel: ObservableObject {
                 return firstIndex < secondIndex
             }
             
-            queryResults = results
-            
-            // Keep the old pullRequests for backward compatibility
-            pullRequests = results.flatMap { $0.pullRequests }
-            
+            state = .loaded(results)
             lastRefreshTime = Date()
-            errorMessage = nil
         } catch {
-            queryResults = []
-            pullRequests = []
+            let errorMessage: String
             if let gitHubError = error as? GitHubAPIError {
                 errorMessage = gitHubError.userFriendlyDescription
             } else if let urlError = error as? URLError {
@@ -161,12 +173,11 @@ class PullRequestViewModel: ObservableObject {
             } else {
                 errorMessage = "Failed to fetch pull requests: \(error.localizedDescription)"
             }
+            state = .error(errorMessage)
         }
-        
-        isLoading = false
     }
     
-    func startAutoRefresh() {
+    private func setupAutoRefresh() {
         refreshTimer?.invalidate()
         
         // Initial fetch
@@ -175,7 +186,7 @@ class PullRequestViewModel: ObservableObject {
         }
         
         // Refresh at configured interval using weak self to prevent retain cycles
-        let refreshInterval = appSettings.refreshInterval
+        let refreshInterval = settingsService.refreshInterval
         refreshTimer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             Task { @MainActor in
@@ -189,6 +200,18 @@ class PullRequestViewModel: ObservableObject {
             await fetchPullRequests()
         }
     }
+    
+    // MARK: - Testing Support
+    
+    #if DEBUG
+    func setState(_ newState: ViewState) {
+        state = newState
+    }
+    
+    func setCurrentUserLogin(_ login: String?) {
+        currentUserLogin = login
+    }
+    #endif
     
     private func extractOwnerFromRepositoryUrl(_ repositoryUrl: String) -> String? {
         // Extract owner from repository_url using robust regex parsing
